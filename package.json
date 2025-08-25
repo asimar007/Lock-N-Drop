@@ -1,7 +1,7 @@
 {
   "name": "lockndrop",
   "private": true,
-  "version": "1.1.0",
+  "version": "1.1.1",
   "type": "module",
   "description": "Secure end-to-end encrypted file transfer application with AES-256 encryption",
   "keywords": [
@@ -11,7 +11,7 @@
     "privacy",
     "AES-256"
   ],
-  "author": "LocknDrop",
+  "author": "Asim SK",
   "homepage": "https://www.lockndrop.asimsk.online",
   "repository": {
     "type": "git",
@@ -35,6 +35,7 @@
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.4.18",
+    "dotenv": "^16.6.1",
     "eslint": "^9.9.1",
     "eslint-plugin-react-hooks": "^5.1.0-rc.0",
     "eslint-plugin-react-refresh": "^0.4.11",
