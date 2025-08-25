@@ -1,15 +1,21 @@
 {
   "name": "lockndrop",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "module",
   "description": "Secure end-to-end encrypted file transfer application with AES-256 encryption",
-  "keywords": ["file transfer", "encryption", "security", "privacy", "AES-256"],
+  "keywords": [
+    "file transfer",
+    "encryption",
+    "security",
+    "privacy",
+    "AES-256"
+  ],
   "author": "LocknDrop",
   "homepage": "https://www.lockndrop.asimsk.online",
   "repository": {
     "type": "git",
-    "url": "https://github.com/lockndrop/lockndrop.git"
+    "url": "https://github.com/asimar007/Lock-N-Drop.git"
   },
   "scripts": {
     "dev": "vite",
@@ -18,10 +24,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.39.0",
     "lucide-react": "^0.344.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "@supabase/supabase-js": "^2.39.0"
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.9.1",

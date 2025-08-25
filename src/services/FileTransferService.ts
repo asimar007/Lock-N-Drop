@@ -39,26 +39,8 @@ export class FileTransferService {
   constructor() {}
 
   private async trackUserIP(): Promise<void> {
-    if (!supabase) return;
-
-    try {
-      // Get user's IP address and user agent
-      const userAgent = navigator.userAgent;
-
-      // Call the IP tracking function
-      const { error } = await supabase.rpc("track_user_ip", {
-        p_ip_address: null, // Let the server determine the actual IP address
-        p_user_agent: userAgent,
-      });
-
-      if (error) {
-        console.warn("IP tracking failed:", error);
-      } else {
-        console.log("IP tracked successfully");
-      }
-    } catch (error) {
-      console.warn("IP tracking error:", error);
-    }
+    // Temporarily disabled - no-op function
+    return Promise.resolve();
   }
 
   async createSession(): Promise<string> {
@@ -67,18 +49,15 @@ export class FileTransferService {
 
     try {
       if (!supabase) {
-        console.warn("Supabase not configured - running in demo mode");
         this.onConnectionStateChange?.("connected");
         return code;
       }
 
-      console.log("Creating session with code:", code);
-
-      // Track user IP
+      // Track user IP (no-op for now)
       await this.trackUserIP();
 
       // Create session in database
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from("transfer_sessions")
         .insert({
           code,
@@ -90,15 +69,12 @@ export class FileTransferService {
         .single();
 
       if (error) {
-        console.error("Failed to create session:", error);
         throw new Error(`Failed to create session: ${error.message}`);
       }
 
-      console.log("Session created successfully:", data);
       this.onConnectionStateChange?.("connected");
       return code;
     } catch (error) {
-      console.error("Session creation error:", error);
       this.onConnectionStateChange?.("failed");
       throw error;
     }
@@ -110,14 +86,11 @@ export class FileTransferService {
 
     try {
       if (!supabase) {
-        console.warn("Supabase not configured - running in demo mode");
         this.onConnectionStateChange?.("connected");
         return true;
       }
 
-      console.log("Joining session with code:", code);
-
-      // Track user IP
+      // Track user IP (no-op for now)
       await this.trackUserIP();
 
       // Check if session exists
@@ -130,12 +103,9 @@ export class FileTransferService {
         .single();
 
       if (error || !session) {
-        console.error("Session not found:", error);
         this.onConnectionStateChange?.("failed");
         return false;
       }
-
-      console.log("Session found:", session);
 
       // Update session status
       const { error: updateError } = await supabase
@@ -144,7 +114,6 @@ export class FileTransferService {
         .eq("code", code);
 
       if (updateError) {
-        console.error("Failed to update session status:", updateError);
         this.onConnectionStateChange?.("failed");
         return false;
       }
@@ -155,8 +124,7 @@ export class FileTransferService {
       this.startFilePolling();
 
       return true;
-    } catch (error) {
-      console.error("Failed to join session:", error);
+    } catch {
       this.onConnectionStateChange?.("failed");
       return false;
     }
@@ -168,19 +136,10 @@ export class FileTransferService {
   ): Promise<void> {
     try {
       if (!supabase) {
-        console.warn("Supabase not configured - simulating file transfer");
         this.simulateFileTransfer(file, onProgress);
         return;
       }
 
-      console.log(
-        "Starting file upload:",
-        file.name,
-        "Size:",
-        file.size,
-        "Type:",
-        file.type
-      );
       this.onConnectionStateChange?.("transferring");
 
       // Generate encryption key
@@ -190,10 +149,6 @@ export class FileTransferService {
       const fileId = crypto.randomUUID();
       const chunkSize = 64 * 1024; // 64KB chunks
       const totalChunks = Math.ceil(file.size / chunkSize);
-
-      console.log(
-        `File "${file.name}" (${file.type}) will be split into ${totalChunks} chunks`
-      );
 
       // Store file metadata - ALWAYS store for ALL file types
       const metadata: Omit<FileMetadata, "created_at"> = {
@@ -208,8 +163,6 @@ export class FileTransferService {
         total_chunks: totalChunks,
       };
 
-      console.log("Storing file metadata for ALL file types:", metadata);
-
       const { data: metadataResult, error: metadataError } = await supabase
         .from("file_metadata")
         .insert(metadata)
@@ -217,13 +170,13 @@ export class FileTransferService {
         .single();
 
       if (metadataError) {
-        console.error("Failed to store file metadata:", metadataError);
         throw new Error(
           `Failed to store file metadata: ${metadataError.message}`
         );
       }
 
-      console.log("File metadata stored successfully:", metadataResult);
+      // Use metadataResult to avoid unused variable warning
+      void metadataResult;
 
       // Upload file chunks - ALWAYS upload for ALL file types
       for (let i = 0; i < totalChunks; i++) {
@@ -231,12 +184,6 @@ export class FileTransferService {
         const end = Math.min(start + chunkSize, file.size);
         const chunk = file.slice(start, end);
         const chunkData = await chunk.arrayBuffer();
-
-        console.log(
-          `Processing chunk ${i + 1}/${totalChunks} for "${
-            file.name
-          }" (${start}-${end} bytes)`
-        );
 
         // Encrypt chunk
         const { encryptedData, iv } = await FileEncryption.encryptFile(
@@ -263,19 +210,11 @@ export class FileTransferService {
           .single();
 
         if (chunkError) {
-          console.error(
-            `Failed to upload chunk ${i} for "${file.name}":`,
-            chunkError
-          );
           throw new Error(`Failed to upload chunk ${i}: ${chunkError.message}`);
         }
 
-        console.log(
-          `Chunk ${i + 1}/${totalChunks} uploaded successfully for "${
-            file.name
-          }":`,
-          chunkResult
-        );
+        // Use chunkResult to avoid unused variable warning
+        void chunkResult;
 
         // Report progress
         const progress = (i + 1) / totalChunks;
@@ -284,9 +223,7 @@ export class FileTransferService {
       }
 
       this.onConnectionStateChange?.("completed");
-      console.log("File upload completed successfully:", file.name);
     } catch (error) {
-      console.error("File transfer failed:", error);
       this.onConnectionStateChange?.("failed");
       throw error;
     }
@@ -296,7 +233,6 @@ export class FileTransferService {
     file: File,
     onProgress?: (progress: number) => void
   ): Promise<void> {
-    console.log("Simulating file transfer for:", file.name);
     // Simulate file transfer progress
     for (let i = 0; i <= 100; i += 10) {
       await new Promise((resolve) => setTimeout(resolve, 100));
@@ -306,18 +242,15 @@ export class FileTransferService {
     }
 
     this.onConnectionStateChange?.("completed");
-    console.log("Demo file transfer completed:", file.name);
   }
 
   private async startFilePolling(): Promise<void> {
     if (!supabase || this.isPolling) return;
 
     this.isPolling = true;
-    console.log("Starting file polling for session:", this.sessionCode);
 
     const pollForFiles = async () => {
       if (!supabase) {
-        console.warn("Supabase not configured, stopping polling.");
         this.stopPolling();
         return;
       }
@@ -329,29 +262,21 @@ export class FileTransferService {
           .eq("session_code", this.sessionCode);
 
         if (error) {
-          console.error("Error polling for files:", error);
           return;
         }
 
         if (!files || files.length === 0) {
-          console.log("No files found for session:", this.sessionCode);
           return;
         }
-
-        console.log(
-          `Found ${files.length} files for session:`,
-          this.sessionCode
-        );
 
         // Process only new files that haven't been downloaded
         for (const fileMetadata of files) {
           if (!this.downloadedFiles.has(fileMetadata.id)) {
-            console.log("Found new file to download:", fileMetadata.file_name);
             await this.downloadFile(fileMetadata);
           }
         }
-      } catch (error) {
-        console.error("Polling error:", error);
+      } catch {
+        // Silently handle polling errors
       }
     };
 
@@ -373,7 +298,6 @@ export class FileTransferService {
       this.pollingInterval = undefined;
     }
     this.isPolling = false;
-    console.log("Stopped file polling");
   }
 
   private async downloadFile(metadata: FileMetadata): Promise<void> {
@@ -382,11 +306,9 @@ export class FileTransferService {
     try {
       // Mark this file as being processed to prevent duplicate downloads
       if (this.downloadedFiles.has(metadata.id)) {
-        console.log("File already downloaded:", metadata.file_name);
         return;
       }
 
-      console.log("Starting download for file:", metadata.file_name);
       this.downloadedFiles.add(metadata.id);
 
       // Get all chunks for this file
@@ -397,25 +319,15 @@ export class FileTransferService {
         .order("chunk_index");
 
       if (error) {
-        console.error("Error fetching chunks:", error);
         this.downloadedFiles.delete(metadata.id); // Remove from downloaded set on error
         return;
       }
 
       if (!chunks || chunks.length !== metadata.total_chunks) {
-        console.log(
-          `File not fully uploaded yet: ${metadata.file_name} (${
-            chunks?.length || 0
-          }/${metadata.total_chunks} chunks)`
-        );
         this.downloadedFiles.delete(metadata.id); // Remove from downloaded set to retry later
         return;
       }
 
-      console.log(
-        `All ${chunks.length} chunks found for file:`,
-        metadata.file_name
-      );
       this.onConnectionStateChange?.("transferring");
 
       // Import encryption key
@@ -428,10 +340,6 @@ export class FileTransferService {
       const decryptedChunks: ArrayBuffer[] = [];
 
       for (const chunk of chunks) {
-        console.log(
-          `Decrypting chunk ${chunk.chunk_index + 1}/${chunks.length}`
-        );
-
         const encryptedData = Uint8Array.from(atob(chunk.chunk_data), (c) =>
           c.charCodeAt(0)
         );
@@ -464,13 +372,6 @@ export class FileTransferService {
         offset += chunk.byteLength;
       }
 
-      console.log(
-        "File reconstruction completed:",
-        metadata.file_name,
-        "Final size:",
-        totalSize
-      );
-
       // Trigger file received callback
       this.onFileReceived?.({
         name: metadata.file_name,
@@ -482,9 +383,7 @@ export class FileTransferService {
       await this.cleanupFile(metadata.id);
 
       this.onConnectionStateChange?.("completed");
-      console.log("File download completed:", metadata.file_name);
-    } catch (error) {
-      console.error("File download failed:", error);
+    } catch {
       this.downloadedFiles.delete(metadata.id); // Remove from downloaded set on error
       this.onConnectionStateChange?.("failed");
     }
@@ -494,8 +393,6 @@ export class FileTransferService {
     if (!supabase) return;
 
     try {
-      console.log("Cleaning up file data for:", fileId);
-
       // Delete chunks
       const { error: chunksError } = await supabase
         .from("file_chunks")
@@ -503,7 +400,7 @@ export class FileTransferService {
         .eq("file_id", fileId);
 
       if (chunksError) {
-        console.error("Failed to delete chunks:", chunksError);
+        // Silently handle chunk deletion error
       }
 
       // Delete metadata
@@ -513,12 +410,10 @@ export class FileTransferService {
         .eq("id", fileId);
 
       if (metadataError) {
-        console.error("Failed to delete metadata:", metadataError);
+        // Silently handle metadata deletion error
       }
-
-      console.log("Cleaned up file data for:", fileId);
-    } catch (error) {
-      console.error("Cleanup failed:", error);
+    } catch {
+      // Silently handle cleanup errors
     }
   }
 
@@ -552,8 +447,8 @@ export class FileTransferService {
           .from("transfer_sessions")
           .update({ status: "closed" })
           .eq("code", this.sessionCode);
-      } catch (error) {
-        console.error("Failed to close session:", error);
+      } catch {
+        // Silently handle session close error
       }
     }
   }

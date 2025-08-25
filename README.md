@@ -36,8 +36,6 @@ LocknDrop is a **secure, database-based file transfer application** that impleme
 
 - 📊 **Real-time Progress** - Live transfer progress with speed indicators
 
-- 🛡️ **Security Monitoring** - IP tracking for security analysis
-
 ---
 
 ## 🎯 Quick Start
@@ -161,8 +159,6 @@ F --> G[📁 Original File]
 
 - ✅ **No file storage** - Only encrypted chunks stored temporarily
 
-- ✅ **IP monitoring** - Security logs for threat detection
-
 ---
 
 ## 🛠️ Technology Stack
@@ -185,8 +181,6 @@ F --> G[📁 Original File]
 
 - **Row Level Security** - Database-level access control
 
-- **Edge Functions** - Serverless cleanup automation
-
 - **Web Crypto API** - Browser-native encryption
 
 ### Security & Performance
@@ -198,14 +192,6 @@ F --> G[📁 Original File]
 - **Progressive Web App** - Installable, offline-capable
 
 - **Responsive design** - Mobile-first approach
-
----
-
-### Automatic Cleanup System
-
-- **Hourly**: Remove expired sessions (2+ hours old)
-
-- **Daily**: Complete data purge (24-hour reset)
 
 - **Permanent**: IP tracking for security monitoring
 
@@ -269,10 +255,6 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 - 🔐 **End-to-end encryption** with AES-256-GCM
 
 - 🚫 **Zero permanent storage** of user files
-
-- ⏰ **Automatic data deletion** within 24 hours
-
-- 🔍 **Security monitoring** with IP tracking
 
 - 🛡️ **Row-level security** in database
 

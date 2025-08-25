@@ -10,5 +10,4 @@ Acknowledgments: https://www.lockndrop.asimsk.online
 # - Zero permanent file storage
 # - Automatic 24-hour data deletion
 # - Row-level security policies
-# - IP tracking for security monitoring
 # - HTTPS enforcement
