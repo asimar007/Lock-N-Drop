@@ -1,8 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 
 export default async function handler(req, res) {
-  // Only allow POST requests (Vercel cron sends POST)
-  if (req.method !== "POST") {
+  // Allow GET requests (Vercel cron sends GET)
+  if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
