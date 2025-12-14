@@ -7,20 +7,24 @@ export default async function handler(req, res) {
   }
 
   // Verify the request is from Vercel Cron
-  // Vercel cron jobs include a special header
   const cronSecret =
     req.headers["x-vercel-cron-secret"] ||
     req.headers.authorization?.replace("Bearer ", "");
+
+  // Use process.env.CRON_SECRET if available
   if (cronSecret !== process.env.CRON_SECRET) {
     return res.status(401).json({ error: "Unauthorized" });
   }
 
   try {
-    // Get Supabase credentials from environment variables
-    const supabaseUrl = process.env.VITE_SUPABASE_URL;
-    const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY;
+    // robustly check for env vars (Vercel vs Vite prefixes)
+    const supabaseUrl =
+      process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+    const supabaseKey =
+      process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 
     if (!supabaseUrl || !supabaseKey) {
+      console.error("Supabase credentials missing");
       return res.status(500).json({
         error: "Supabase credentials not configured",
         timestamp: new Date().toISOString(),
@@ -30,11 +34,12 @@ export default async function handler(req, res) {
     // Create Supabase client
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Perform a simple database operation to keep it active
-    const { data, error } = await supabase
+    // Perform a lightweight database operation to keep it active
+    // Using count with head: true is lighter than selecting actual data
+    // and often bypasses some RLS issues if we just check existence
+    const { error } = await supabase
       .from("transfer_sessions")
-      .select("id")
-      .limit(1);
+      .select("count", { count: "exact", head: true });
 
     if (error) {
       console.error("Supabase ping failed:", error);
