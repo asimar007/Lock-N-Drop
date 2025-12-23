@@ -34,7 +34,9 @@ export class FileTransferService {
   private onConnectionStateChange?: (state: string) => void;
   private downloadedFiles: Set<string> = new Set(); // Track downloaded files
   private pollingInterval?: number;
+  private sessionPollingInterval?: number;
   private isPolling: boolean = false;
+  private onSessionCompleted?: () => void;
 
   constructor() {}
 
@@ -382,6 +384,9 @@ export class FileTransferService {
       // Clean up - delete chunks and metadata
       await this.cleanupFile(metadata.id);
 
+      // Mark session as completed
+      await this.completeSession();
+
       this.onConnectionStateChange?.("completed");
     } catch {
       this.downloadedFiles.delete(metadata.id); // Remove from downloaded set on error
@@ -433,9 +438,62 @@ export class FileTransferService {
     this.onConnectionStateChange = handler;
   }
 
+  async completeSession(): Promise<void> {
+    if (!this.sessionCode) return;
+
+    try {
+      if (supabase) {
+        await supabase
+          .from("transfer_sessions")
+          .update({ status: "completed" })
+          .eq("code", this.sessionCode);
+      }
+    } catch {
+      // Silently handle error
+    } finally {
+      this.onSessionCompleted?.();
+    }
+  }
+
+  listenForSessionCompletion(callback: () => void): void {
+    this.onSessionCompleted = callback;
+    if (!supabase || !this.sessionCode) return;
+
+    // Poll for session completion
+    this.sessionPollingInterval = window.setInterval(async () => {
+      if (!supabase) return;
+      try {
+        const { data, error } = await supabase
+          .from("transfer_sessions")
+          .select("status")
+          .eq("code", this.sessionCode)
+          .single();
+
+        if (!error && data?.status === "completed") {
+          this.onSessionCompleted?.();
+          this.stopSessionPolling();
+        }
+      } catch {
+        // Silently handle error
+      }
+    }, 2000);
+  }
+
+  private stopSessionPolling(): void {
+    if (this.sessionPollingInterval) {
+      clearInterval(this.sessionPollingInterval);
+      this.sessionPollingInterval = undefined;
+    }
+  }
+
+  setSessionCompletionHandler(handler: () => void): void {
+    this.onSessionCompleted = handler;
+  }
+
   async close(): Promise<void> {
     // Stop polling
     this.stopPolling();
+    this.stopSessionPolling();
 
     // Clear downloaded files tracking
     this.downloadedFiles.clear();

@@ -5,10 +5,9 @@ import {
   Plus,
   ArrowDown,
   Shield,
-  Clock,
   Database,
-  Moon,
-  Sun,
+  Github,
+  Zap,
 } from "lucide-react";
 import { FileSelector } from "./components/FileSelector";
 import { SessionCodeDisplay } from "./components/SessionCodeDisplay";
@@ -17,6 +16,7 @@ import { TransferProgress } from "./components/TransferProgress";
 import { SetupInstructions } from "./components/SetupInstructions";
 import { ErrorDisplay } from "./components/ErrorDisplay";
 import { Toast } from "./components/Toast";
+
 import { useFileTransfer } from "./hooks/useFileTransfer";
 
 type AppMode = "select" | "send" | "receive";
@@ -26,14 +26,9 @@ function App() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
-  const [isDarkMode, setIsDarkMode] = useState(() => {
-    // Check for saved theme preference or default to light mode
-    const saved = localStorage.getItem("theme");
-    return (
-      saved === "dark" ||
-      (!saved && window.matchMedia("(prefers-color-scheme: dark)").matches)
-    );
-  });
+  const [toastType, setToastType] = useState<
+    "success" | "error" | "warning" | "info"
+  >("success");
 
   const {
     session,
@@ -47,35 +42,15 @@ function App() {
     dismissError,
   } = useFileTransfer();
 
-  // Apply dark mode to document
+  // Enforce dark mode on mount
   useEffect(() => {
-    if (isDarkMode) {
-      document.documentElement.classList.add("dark");
-      localStorage.setItem("theme", "dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-      localStorage.setItem("theme", "light");
-    }
-  }, [isDarkMode]);
-
-  const toggleDarkMode = () => {
-    setIsDarkMode(!isDarkMode);
-  };
+    document.documentElement.classList.add("dark");
+  }, []);
 
   // Check if Supabase is configured
   const isSupabaseConfigured = !!(
     import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY
   );
-
-  // Set up transfer complete handler to show toast (no auto-redirect)
-  useEffect(() => {
-    setOnTransferComplete(() => {
-      if (session?.role === "sender") {
-        setToastMessage("File ready to download");
-        setShowToast(true);
-      }
-    });
-  }, [setOnTransferComplete, session?.role]);
 
   const handleSendFiles = () => {
     if (selectedFiles.length === 0) return;
@@ -98,12 +73,11 @@ function App() {
     await connectToSession(code);
   };
 
-  const handleReset = () => {
+  const handleReset = React.useCallback(() => {
     resetSession();
     setSelectedFiles([]);
     setMode("select");
-    setShowToast(false);
-  };
+  }, [resetSession]);
 
   const regenerateCode = () => {
     if (selectedFiles.length > 0) {
@@ -123,441 +97,306 @@ function App() {
     setShowToast(false);
   };
 
+  // Handle specific errors via Toast instead of ErrorDisplay
+  useEffect(() => {
+    if (error === "Invalid or expired code. Please check and try again.") {
+      setToastMessage(error);
+      setToastType("error");
+      setShowToast(true);
+      dismissError();
+    }
+  }, [error, dismissError]);
+
+  // Set up transfer complete handler to reset to home page
+  useEffect(() => {
+    setOnTransferComplete(() => {
+      handleReset();
+    });
+  }, [setOnTransferComplete, handleReset]);
+
   return (
-    <div
-      className={`min-h-screen transition-colors duration-300 ${
-        isDarkMode
-          ? "bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900"
-          : "bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100"
-      }`}
-    >
-      {/* Enhanced Header with Dark Mode */}
-      <header
-        className={`backdrop-blur-xl border-b sticky top-0 z-50 shadow-sm transition-colors duration-300 ${
-          isDarkMode
-            ? "bg-slate-900/80 border-slate-700/20"
-            : "bg-white/80 border-white/20"
-        }`}
-      >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-4">
-          <div className="flex items-center justify-between">
-            {/* Logo and Brand */}
-            <div className="flex items-center space-x-2 sm:space-x-3">
-              <div className="relative">
-                <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
-                  <Lock className="h-4 w-4 sm:h-6 sm:w-6 text-white" />
-                </div>
+    <div className="min-h-screen relative font-sans selection:bg-white selection:text-black bg-black text-white">
+      {/* Background Grid Pattern */}
+      <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#222_1px,transparent_1px),linear-gradient(to_bottom,#222_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] opacity-40"></div>
+        <div className="absolute top-0 left-0 right-0 h-[500px] bg-gradient-to-b from-blue-900/10 via-transparent to-transparent blur-3xl opacity-30"></div>
+      </div>
+
+      <div className="relative z-10 flex flex-col min-h-screen">
+        {/* Header */}
+        <header className="border-b backdrop-blur-md sticky top-0 z-50 border-white/10 bg-black/50">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div
+              className="flex items-center gap-2 cursor-pointer"
+              onClick={handleReset}
+            >
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-lg bg-white text-black">
+                <Lock className="h-4 w-4" />
               </div>
-              <div>
-                <h1
-                  className={`text-lg sm:text-2xl font-bold bg-gradient-to-r bg-clip-text text-transparent transition-colors duration-300 ${
-                    isDarkMode
-                      ? "from-white to-slate-300"
-                      : "from-slate-900 to-slate-700"
-                  }`}
-                >
-                  LocknDrop
-                </h1>
-                <p
-                  className={`text-xs font-medium hidden sm:block transition-colors duration-300 ${
-                    isDarkMode ? "text-slate-400" : "text-slate-500"
-                  }`}
-                >
-                  End-to-End Encrypted
-                </p>
-              </div>
+              <span className="font-bold tracking-tight text-lg">
+                LocknDrop
+              </span>
             </div>
 
-            {/* Desktop Navigation Features */}
-            <div className="hidden lg:flex items-center space-x-6 xl:space-x-8">
-              <div
-                className={`flex items-center space-x-2 transition-colors duration-300 ${
-                  isDarkMode ? "text-slate-300" : "text-slate-600"
-                }`}
+            <div className="hidden md:flex items-center gap-6 text-sm font-medium opacity-60">
+              <span
+                className="flex items-center gap-1.5 hover:opacity-100 transition-opacity cursor-help"
+                title="AES-256 GCM encryption in browser"
               >
-                <Shield className="h-4 w-4 text-emerald-500" />
-                <span className="text-sm font-medium">AES-256 Encryption</span>
-              </div>
-
-              <div
-                className={`flex items-center space-x-2 transition-colors duration-300 ${
-                  isDarkMode ? "text-slate-300" : "text-slate-600"
-                }`}
+                <Shield className="h-3.5 w-3.5" /> End-to-End Encrypted
+              </span>
+              <span
+                className="flex items-center gap-1.5 hover:opacity-100 transition-opacity cursor-help"
+                title="Files never stored on server"
               >
-                <Clock className="h-4 w-4 text-blue-500" />
-                <span className="text-sm font-medium">24h Auto-Delete</span>
-              </div>
-
-              <div
-                className={`flex items-center space-x-2 transition-colors duration-300 ${
-                  isDarkMode ? "text-slate-300" : "text-slate-600"
-                }`}
+                <Database className="h-3.5 w-3.5" /> Zero Persistence
+              </span>
+              <span
+                className="flex items-center gap-1.5 hover:opacity-100 transition-opacity cursor-help"
+                title="Direct P2P transfer"
               >
-                <Database className="h-4 w-4 text-purple-500" />
-                <span className="text-sm font-medium">No File Storage</span>
-              </div>
+                <Zap className="h-3.5 w-3.5" /> P2P Blazing Fast
+              </span>
             </div>
 
-            {/* Controls */}
-            <div className="flex items-center space-x-3">
-              {/* Dark Mode Toggle */}
-              <button
-                onClick={toggleDarkMode}
-                className={`p-2 sm:p-2.5 rounded-xl transition-all duration-300 hover:scale-105 ${
-                  isDarkMode
-                    ? "bg-slate-800 hover:bg-slate-700 text-yellow-400"
-                    : "bg-slate-100 hover:bg-slate-200 text-slate-600"
-                }`}
-                title={
-                  isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"
-                }
-              >
-                {isDarkMode ? (
-                  <Sun className="h-4 w-4 sm:h-5 sm:w-5" />
-                ) : (
-                  <Moon className="h-4 w-4 sm:h-5 sm:w-5" />
-                )}
-              </button>
-
+            <div className="flex items-center gap-3">
               {/* Demo Badge */}
               {!isSupabaseConfigured && (
-                <div className="flex items-center space-x-2">
-                  <div className="w-2 h-2 bg-amber-400 rounded-full animate-pulse"></div>
-                  <span
-                    className={`text-xs px-2 sm:px-3 py-1 rounded-full font-medium border transition-colors duration-300 ${
-                      isDarkMode
-                        ? "bg-gradient-to-r from-amber-900/50 to-orange-900/50 text-amber-300 border-amber-700"
-                        : "bg-gradient-to-r from-amber-100 to-orange-100 text-amber-800 border-amber-200"
-                    }`}
-                  >
-                    Demo Mode
-                  </span>
-                </div>
+                <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded border border-amber-500/30 text-amber-500 bg-amber-500/10">
+                  Demo Mode
+                </span>
               )}
+
+              <a
+                href="https://github.com/asimar007/Lock-N-Drop"
+                target="_blank"
+                rel="noreferrer"
+                className="p-2 rounded-full transition-colors hover:bg-white/10"
+              >
+                <Github className="h-5 w-5" />
+              </a>
             </div>
           </div>
+        </header>
 
-          {/* Tablet Features Bar */}
-          <div className="md:flex lg:hidden mt-4 items-center justify-center space-x-6 text-xs hidden">
-            <div
-              className={`flex items-center space-x-1 transition-colors duration-300 ${
-                isDarkMode ? "text-slate-300" : "text-slate-600"
-              }`}
-            >
-              <Shield className="h-3 w-3 text-emerald-500" />
-              <span>Encrypted</span>
-            </div>
-            <div
-              className={`flex items-center space-x-1 transition-colors duration-300 ${
-                isDarkMode ? "text-slate-300" : "text-slate-600"
-              }`}
-            >
-              <Clock className="h-3 w-3 text-blue-500" />
-              <span>Auto-Delete</span>
-            </div>
-            <div
-              className={`flex items-center space-x-1 transition-colors duration-300 ${
-                isDarkMode ? "text-slate-300" : "text-slate-600"
-              }`}
-            >
-              <Database className="h-3 w-3 text-purple-500" />
-              <span>Secure</span>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Toast Notification */}
-      {showToast && (
-        <Toast
-          message={toastMessage}
-          type="success"
-          onClose={handleCloseToast}
-        />
-      )}
-
-      {/* Main Content */}
-      <main className="max-w-sm sm:max-w-md lg:max-w-lg xl:max-w-xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-        {/* Global Error Display */}
-        {error && (
-          <div className="mb-4 sm:mb-6">
-            <ErrorDisplay
-              error={error}
-              onDismiss={dismissError}
-              onRetry={handleRetryConnection}
-              type="error"
-            />
-          </div>
+        {/* Toast */}
+        {showToast && (
+          <Toast
+            message={toastMessage}
+            type={toastType}
+            onClose={handleCloseToast}
+          />
         )}
 
-        {!isSupabaseConfigured && mode === "select" && <SetupInstructions />}
+        {/* Main Content */}
+        <main className="flex-grow flex flex-col items-center justify-start pt-6 sm:pt-10 px-4 sm:px-6 pb-12">
+          {/* Hero Text */}
+          {mode === "select" && (
+            <div className="text-center mb-12 animate-fade-in space-y-4">
+              <h1 className="text-6xl font-bold tracking-tight max-w-3xl mx-auto bg-clip-text text-transparent bg-gradient-to-b from-white to-gray-500">
+                Share files securely. <br /> Leave no trace.
+              </h1>
+            </div>
+          )}
 
-        {mode === "select" && (
-          <div className="space-y-4 sm:space-y-6">
-            {/* Send Card */}
-            <div className="group relative">
-              <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl sm:rounded-3xl blur-xl opacity-20 group-hover:opacity-30 transition-opacity"></div>
-              <div
-                className={`relative backdrop-blur-sm rounded-2xl sm:rounded-3xl shadow-xl border p-6 sm:p-8 text-center hover:shadow-2xl transition-all duration-300 ${
-                  isDarkMode
-                    ? "bg-slate-800/90 border-slate-700/50"
-                    : "bg-white/90 border-white/50"
-                }`}
-              >
-                <div className="absolute top-3 right-3 sm:top-4 sm:right-4">
-                  <div className="w-6 h-6 sm:w-8 sm:h-8 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-full flex items-center justify-center">
-                    <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-blue-500 rounded-full"></div>
-                  </div>
-                </div>
-
-                <h2
-                  className={`text-xl sm:text-2xl font-bold mb-4 sm:mb-6 transition-colors duration-300 ${
-                    isDarkMode ? "text-white" : "text-slate-900"
-                  }`}
-                >
-                  Send Files
-                </h2>
-
-                <div className="mb-6 sm:mb-8">
-                  <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl sm:rounded-2xl flex items-center justify-center mx-auto mb-3 sm:mb-4 border-2 border-dashed border-blue-200 group-hover:border-blue-300 transition-colors">
-                    <Plus className="h-8 w-8 sm:h-10 sm:w-10 text-blue-500" />
-                  </div>
-                  <p
-                    className={`text-sm transition-colors duration-300 ${
-                      isDarkMode ? "text-slate-400" : "text-slate-500"
-                    }`}
-                  >
-                    Select files to share securely
-                  </p>
-                </div>
-
-                <FileSelector
-                  onFilesSelected={setSelectedFiles}
-                  selectedFiles={selectedFiles}
-                  maxFileSize={20 * 1024 * 1024} // 20MB limit
+          <div className="w-full max-w-lg">
+            {/* Global Error Display */}
+            {error && (
+              <div className="mb-6">
+                <ErrorDisplay
+                  error={error}
+                  onDismiss={dismissError}
+                  onRetry={handleRetryConnection}
+                  type="error"
                 />
+              </div>
+            )}
 
-                {selectedFiles.length > 0 && (
+            {!isSupabaseConfigured && mode === "select" && (
+              <div className="mb-8">
+                <SetupInstructions />
+              </div>
+            )}
+
+            {mode === "select" && (
+              <div className="grid gap-6 animate-slide-up">
+                {/* Send Card */}
+                <div className="group relative p-1 rounded-2xl transition-all duration-300 hover:bg-gradient-to-br hover:from-blue-500/20 hover:to-purple-500/20">
+                  <div className="relative p-6 rounded-xl border transition-all duration-300 bg-black border-white/10 hover:border-white/20">
+                    <div className="flex items-start justify-between mb-6">
+                      <div>
+                        <h2 className="text-2xl font-bold mb-2">Send Files</h2>
+                        <p className="text-sm text-gray-400">
+                          Create a secure, ephemeral link.
+                        </p>
+                      </div>
+                      <div className="p-3 rounded-full bg-white/5">
+                        <Plus className="h-6 w-6 text-blue-400" />
+                      </div>
+                    </div>
+
+                    <FileSelector
+                      onFilesSelected={setSelectedFiles}
+                      selectedFiles={selectedFiles}
+                      maxFileSize={20 * 1024 * 1024} // 20MB limit
+                    />
+
+                    {selectedFiles.length > 0 && (
+                      <button
+                        onClick={handleSendFiles}
+                        className="w-full mt-6 py-3.5 px-4 rounded-lg font-medium transition-all transform active:scale-95 bg-white text-black hover:bg-gray-200"
+                      >
+                        Generate Sharing Code
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Receive Card */}
+                <div className="group relative p-1 rounded-2xl transition-all duration-300 hover:bg-gradient-to-br hover:from-emerald-500/20 hover:to-teal-500/20">
+                  <div className="relative p-6 rounded-xl border transition-all duration-300 bg-black border-white/10 hover:border-white/20">
+                    <div className="flex items-start justify-between mb-6">
+                      <div>
+                        <h2 className="text-2xl font-bold mb-2">
+                          Receive Files
+                        </h2>
+                        <p className="text-sm text-gray-400">
+                          Enter a code to retrieve files.
+                        </p>
+                      </div>
+                      <div className="p-3 rounded-full bg-white/5">
+                        <ArrowDown className="h-6 w-6 text-emerald-400" />
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={handleReceiveMode}
+                      className="w-full py-3.5 px-4 rounded-lg font-medium border transition-all border-white/20 hover:bg-white/5 text-white"
+                    >
+                      I have a code
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {mode === "send" && session && (
+              <div className="animate-slide-up">
+                <div className="flex items-center gap-4 mb-8">
                   <button
-                    onClick={handleSendFiles}
-                    className="w-full mt-4 sm:mt-6 px-6 sm:px-8 py-3 sm:py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl sm:rounded-2xl font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 text-sm sm:text-base"
+                    onClick={handleReset}
+                    className="p-2 rounded-full border transition-colors border-white/10 hover:bg-white/10"
                   >
-                    Generate Sharing Code
+                    <ArrowLeft className="h-5 w-5" />
                   </button>
+                  <h2 className="text-2xl font-bold">Your Secure Session</h2>
+                </div>
+
+                <div className="mb-6">
+                  <SessionCodeDisplay
+                    code={session.code}
+                    expiresAt={Date.now() + 10 * 60 * 1000} // 10 minutes
+                  />
+
+                  {session.status === "waiting" &&
+                    connectionStatus !== "connected" && (
+                      <div className="mt-6 flex items-center justify-center gap-2 text-sm text-amber-500">
+                        <span className="relative flex h-3 w-3">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
+                        </span>
+                        Waiting for peer connection...
+                      </div>
+                    )}
+
+                  {connectionStatus === "connected" &&
+                    session.status === "waiting" && (
+                      <div className="mt-8">
+                        <button
+                          onClick={handleStartTransfer}
+                          className="w-full py-4 rounded-lg font-bold tracking-wide transition-all bg-emerald-500 text-black hover:bg-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.3)]"
+                        >
+                          START ENCRYPTED TRANSFER
+                        </button>
+                      </div>
+                    )}
+                </div>
+
+                {(session.status === "transferring" ||
+                  session.status === "completed") && (
+                  <div className="">
+                    <TransferProgress
+                      transfers={session.files}
+                      role="sender"
+                      connectionStatus={connectionStatus}
+                    />
+                  </div>
                 )}
               </div>
-            </div>
+            )}
 
-            {/* Receive Card */}
-            <div className="group relative">
-              <div className="absolute inset-0 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-2xl sm:rounded-3xl blur-xl opacity-20 group-hover:opacity-30 transition-opacity"></div>
-              <div
-                className={`relative backdrop-blur-sm rounded-2xl sm:rounded-3xl shadow-xl border p-6 sm:p-8 text-center hover:shadow-2xl transition-all duration-300 ${
-                  isDarkMode
-                    ? "bg-slate-800/90 border-slate-700/50"
-                    : "bg-white/90 border-white/50"
-                }`}
-              >
-                <div className="absolute top-3 right-3 sm:top-4 sm:right-4">
-                  <div className="w-6 h-6 sm:w-8 sm:h-8 bg-gradient-to-br from-emerald-100 to-teal-100 rounded-full flex items-center justify-center">
-                    <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-emerald-500 rounded-full"></div>
-                  </div>
-                </div>
-
-                <h2
-                  className={`text-xl sm:text-2xl font-bold mb-4 sm:mb-6 transition-colors duration-300 ${
-                    isDarkMode ? "text-white" : "text-slate-900"
-                  }`}
-                >
-                  Receive Files
-                </h2>
-
-                <div className="mb-6 sm:mb-8">
-                  <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl sm:rounded-2xl flex items-center justify-center mx-auto mb-3 sm:mb-4 border border-emerald-200">
-                    <ArrowDown className="h-8 w-8 sm:h-10 sm:w-10 text-emerald-500" />
-                  </div>
-                  <p
-                    className={`text-sm transition-colors duration-300 ${
-                      isDarkMode ? "text-slate-400" : "text-slate-500"
-                    }`}
-                  >
-                    Enter the sharing code
-                  </p>
-                </div>
-
-                <button
-                  onClick={handleReceiveMode}
-                  className={`w-full px-6 sm:px-8 py-3 sm:py-4 rounded-xl sm:rounded-2xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 text-sm sm:text-base ${
-                    isDarkMode
-                      ? "bg-gradient-to-r from-slate-700 to-slate-600 text-slate-200 hover:from-slate-600 hover:to-slate-500"
-                      : "bg-gradient-to-r from-slate-100 to-slate-200 text-slate-700 hover:from-slate-200 hover:to-slate-300"
-                  }`}
-                >
-                  Enter Code
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {mode === "send" && session && (
-          <div className="space-y-4 sm:space-y-6">
-            <div className="flex items-center space-x-3 sm:space-x-4">
-              <button
-                onClick={handleReset}
-                className={`p-2 sm:p-3 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 ${
-                  isDarkMode
-                    ? "text-slate-400 hover:text-slate-200 bg-slate-800/80"
-                    : "text-slate-400 hover:text-slate-600 bg-white/80"
-                }`}
-              >
-                <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
-              </button>
-              <h2
-                className={`text-2xl sm:text-3xl font-bold bg-gradient-to-r bg-clip-text text-transparent transition-colors duration-300 ${
-                  isDarkMode
-                    ? "from-white to-slate-300"
-                    : "from-slate-900 to-slate-700"
-                }`}
-              >
-                Send Files
-              </h2>
-            </div>
-
-            <SessionCodeDisplay
-              code={session.code}
-              expiresAt={Date.now() + 10 * 60 * 1000} // 10 minutes
-            />
-
-            {session.status === "waiting" &&
-              connectionStatus !== "connected" && (
-                <div
-                  className={`border rounded-xl sm:rounded-2xl p-4 sm:p-6 transition-colors duration-300 ${
-                    isDarkMode
-                      ? "bg-gradient-to-r from-amber-900/50 to-orange-900/50 border-amber-700"
-                      : "bg-gradient-to-r from-amber-50 to-orange-50 border-amber-200"
-                  }`}
-                >
-                  <div className="flex items-center space-x-3">
-                    <div className="w-3 h-3 bg-amber-400 rounded-full animate-pulse"></div>
-                    <p
-                      className={`font-medium text-sm sm:text-base transition-colors duration-300 ${
-                        isDarkMode ? "text-amber-300" : "text-amber-800"
-                      }`}
-                    >
-                      Waiting for someone to connect using the code above...
-                    </p>
-                  </div>
-                </div>
-              )}
-
-            {connectionStatus === "connected" &&
-              session.status === "waiting" && (
-                <div className="space-y-4">
-                  <div
-                    className={`border rounded-xl sm:rounded-2xl p-4 sm:p-6 transition-colors duration-300 ${
-                      isDarkMode
-                        ? "bg-gradient-to-r from-emerald-900/50 to-teal-900/50 border-emerald-700"
-                        : "bg-gradient-to-r from-emerald-50 to-teal-50 border-emerald-200"
-                    }`}
-                  >
-                    <div className="flex items-center space-x-3">
-                      <div className="w-3 h-3 bg-emerald-500 rounded-full"></div>
-                      <p
-                        className={`font-medium text-sm sm:text-base transition-colors duration-300 ${
-                          isDarkMode ? "text-emerald-300" : "text-emerald-800"
-                        }`}
-                      >
-                        Connected! Ready to transfer files.
-                      </p>
-                    </div>
-                  </div>
-
+            {mode === "receive" && (
+              <div className="animate-slide-up">
+                <div className="flex items-center gap-4 mb-8">
                   <button
-                    onClick={handleStartTransfer}
-                    className="w-full px-6 sm:px-8 py-3 sm:py-4 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-xl sm:rounded-2xl font-semibold hover:from-emerald-700 hover:to-teal-700 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 text-sm sm:text-base"
+                    onClick={handleReset}
+                    className="p-2 rounded-full border transition-colors border-white/10 hover:bg-white/10"
                   >
-                    Start Transfer
+                    <ArrowLeft className="h-5 w-5" />
                   </button>
+                  <h2 className="text-2xl font-bold">Receive Files</h2>
                 </div>
-              )}
 
-            {(session.status === "transferring" ||
-              session.status === "completed") && (
-              <TransferProgress
-                transfers={session.files}
-                role="sender"
-                connectionStatus={connectionStatus}
-              />
-            )}
-          </div>
-        )}
-
-        {mode === "receive" && (
-          <div className="space-y-4 sm:space-y-6">
-            <div className="flex items-center space-x-3 sm:space-x-4">
-              <button
-                onClick={handleReset}
-                className={`p-2 sm:p-3 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 ${
-                  isDarkMode
-                    ? "text-slate-400 hover:text-slate-200 bg-slate-800/80"
-                    : "text-slate-400 hover:text-slate-600 bg-white/80"
-                }`}
-              >
-                <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
-              </button>
-              <h2
-                className={`text-2xl sm:text-3xl font-bold bg-gradient-to-r bg-clip-text text-transparent transition-colors duration-300 ${
-                  isDarkMode
-                    ? "from-white to-slate-300"
-                    : "from-slate-900 to-slate-700"
-                }`}
-              >
-                Receive Files
-              </h2>
-            </div>
-
-            {!session && (
-              <CodeEntry
-                onCodeSubmit={handleCodeSubmit}
-                isConnecting={connectionStatus === "connecting"}
-                error={error}
-              />
-            )}
-
-            {session &&
-              session.files.length === 0 &&
-              connectionStatus === "connected" && (
-                <div
-                  className={`border rounded-xl sm:rounded-2xl p-4 sm:p-6 transition-colors duration-300 ${
-                    isDarkMode
-                      ? "bg-gradient-to-r from-blue-900/50 to-indigo-900/50 border-blue-700"
-                      : "bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200"
-                  }`}
-                >
-                  <div className="flex items-center space-x-3">
-                    <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
-                    <p
-                      className={`font-medium text-sm sm:text-base transition-colors duration-300 ${
-                        isDarkMode ? "text-blue-300" : "text-blue-800"
-                      }`}
-                    >
-                      Connected successfully! Waiting for files...
-                    </p>
+                {!session && (
+                  <div className="p-8 rounded-xl border bg-black border-white/10">
+                    <CodeEntry
+                      onCodeSubmit={handleCodeSubmit}
+                      isConnecting={connectionStatus === "connecting"}
+                      error={error}
+                    />
                   </div>
-                </div>
-              )}
+                )}
 
-            {session && session.files.length > 0 && (
-              <TransferProgress
-                transfers={session.files}
-                role="receiver"
-                connectionStatus={connectionStatus}
-              />
+                {session && (
+                  <div className="">
+                    {session.files.length === 0 &&
+                      connectionStatus === "connected" && (
+                        <div className="text-center py-8">
+                          <div className="inline-flex p-4 rounded-full bg-blue-500/10 mb-4">
+                            <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
+                            <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce delay-75 mx-1"></div>
+                            <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce delay-150"></div>
+                          </div>
+                          <h3 className="text-lg font-medium mb-1">
+                            Connected to Sender
+                          </h3>
+                          <p className="text-sm text-gray-400">
+                            Waiting for them to start the transfer...
+                          </p>
+                        </div>
+                      )}
+
+                    {session.files.length > 0 && (
+                      <TransferProgress
+                        transfers={session.files}
+                        role="receiver"
+                        connectionStatus={connectionStatus}
+                      />
+                    )}
+                  </div>
+                )}
+              </div>
             )}
           </div>
-        )}
-      </main>
+
+          <footer className="mt-auto pt-12 text-center text-xs text-gray-600">
+            <p className="flex items-center justify-center gap-2">
+              <Lock className="h-3 w-3" /> E2E Encrypted • Transient • Open
+              Source
+            </p>
+          </footer>
+        </main>
+      </div>
     </div>
   );
 }

@@ -47,20 +47,8 @@ export const useFileTransfer = () => {
                 : file
             );
 
-            // Check if all files are completed for sender
-            const allCompleted = updatedFiles.every(
-              (file) => file.status === "completed"
-            );
-            if (
-              allCompleted &&
-              prev.role === "sender" &&
-              onTransferCompleteRef.current
-            ) {
-              // Delay the redirect slightly to show completion state
-              setTimeout(() => {
-                onTransferCompleteRef.current?.();
-              }, 2000);
-            }
+            // Note: We no longer auto-complete here for Sender.
+            // We wait for the Receiver to download (session completion).
 
             return { ...prev, files: updatedFiles };
           });
@@ -92,12 +80,30 @@ export const useFileTransfer = () => {
           });
         });
 
+        // Setup completion handler (shared wrapper)
+        const handleSessionComplete = () => {
+          if (onTransferCompleteRef.current) {
+            // Slightly delay to ensure UI updates
+            setTimeout(() => {
+              onTransferCompleteRef.current?.();
+            }, 1000);
+          }
+        };
+
         let code: string;
 
         if (role === "sender") {
           code = await fileTransferService.current.createSession();
+          // Sender listens for DB updates from Receiver
+          fileTransferService.current.listenForSessionCompletion(
+            handleSessionComplete
+          );
         } else {
           code = ""; // Will be set when joining
+          // Receiver triggers locally when download finishes
+          fileTransferService.current.setSessionCompletionHandler(
+            handleSessionComplete
+          );
         }
 
         const newSession: TransferSession = {

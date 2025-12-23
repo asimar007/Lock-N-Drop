@@ -120,25 +120,25 @@ export const FileSelector: React.FC<FileSelectorProps> = ({
 
   const getFileTypeIcon = (mimeType: string) => {
     if (mimeType.startsWith("image/"))
-      return <Image className="h-4 w-4 sm:h-5 sm:w-5 text-purple-500" />;
+      return <Image className="h-5 w-5 text-purple-500" />;
     if (mimeType.startsWith("video/"))
-      return <Video className="h-4 w-4 sm:h-5 sm:w-5 text-red-500" />;
+      return <Video className="h-5 w-5 text-red-500" />;
     if (mimeType.startsWith("audio/"))
-      return <Music className="h-4 w-4 sm:h-5 sm:w-5 text-green-500" />;
+      return <Music className="h-5 w-5 text-green-500" />;
     if (mimeType.includes("pdf") || mimeType.includes("document"))
-      return <FileText className="h-4 w-4 sm:h-5 sm:w-5 text-blue-500" />;
+      return <FileText className="h-5 w-5 text-blue-500" />;
     if (mimeType.includes("zip") || mimeType.includes("archive"))
-      return <Archive className="h-4 w-4 sm:h-5 sm:w-5 text-orange-500" />;
-    return <File className="h-4 w-4 sm:h-5 sm:w-5 text-slate-500" />;
+      return <Archive className="h-5 w-5 text-orange-500" />;
+    return <File className="h-5 w-5 text-slate-500" />;
   };
 
   if (selectedFiles.length === 0) {
     return (
       <div
-        className={`relative border-2 border-dashed rounded-xl sm:rounded-2xl p-6 sm:p-8 transition-all duration-300 cursor-pointer group ${
+        className={`relative border-2 border-dashed rounded-xl p-5 transition-all duration-300 cursor-pointer group ${
           isDragOver
-            ? "border-blue-400 bg-blue-50/50 scale-105 shadow-lg"
-            : "border-slate-300 hover:border-blue-400 hover:bg-blue-50/30"
+            ? "border-blue-400 bg-blue-50/10 scale-[1.02] shadow-lg"
+            : "border-slate-300 dark:border-white/20 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50/5 dark:hover:bg-blue-500/10"
         }`}
         onDragOver={handleDragOver}
         onDragEnter={handleDragEnter}
@@ -153,31 +153,29 @@ export const FileSelector: React.FC<FileSelectorProps> = ({
           accept="*/*"
         />
 
-        <div className="text-center space-y-3 sm:space-y-4 pointer-events-none">
+        <div className="text-center space-y-2 pointer-events-none">
           <div
-            className={`w-12 h-12 sm:w-16 sm:h-16 mx-auto rounded-xl sm:rounded-2xl flex items-center justify-center transition-all duration-300 ${
+            className={`w-12 h-12 mx-auto rounded-xl flex items-center justify-center transition-all duration-300 ${
               isDragOver
-                ? "bg-blue-100 scale-110"
-                : "bg-slate-100 group-hover:bg-blue-100 group-hover:scale-105"
+                ? "bg-blue-100 dark:bg-blue-500/20 scale-110"
+                : "bg-slate-100 dark:bg-white/10 group-hover:bg-blue-100 dark:group-hover:bg-blue-500/20 group-hover:scale-105"
             }`}
           >
             <Upload
-              className={`h-6 w-6 sm:h-8 sm:w-8 transition-colors duration-300 ${
+              className={`h-6 w-6 transition-colors duration-300 ${
                 isDragOver
-                  ? "text-blue-600"
-                  : "text-slate-500 group-hover:text-blue-600"
+                  ? "text-blue-600 dark:text-blue-400"
+                  : "text-slate-500 dark:text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-400"
               }`}
             />
           </div>
 
           <div>
-            <p className="text-sm font-semibold text-slate-700 mb-1">
-              {isDragOver
-                ? "Drop files here"
-                : "Drop files here or click to browse"}
+            <p className="text-sm font-semibold text-slate-700 dark:text-gray-300 mb-0.5">
+              {isDragOver ? "Drop contents" : "Drop files or click"}
             </p>
-            <p className="text-xs text-slate-500">
-              Support for any file type up to {formatFileSize(maxFileSize)}
+            <p className="text-xs text-slate-500 dark:text-gray-500">
+              Max {formatFileSize(maxFileSize)}
             </p>
           </div>
         </div>
@@ -186,22 +184,22 @@ export const FileSelector: React.FC<FileSelectorProps> = ({
   }
 
   return (
-    <div className="space-y-3 sm:space-y-4">
+    <div className="space-y-3">
       {/* Selected Files List */}
-      <div className="space-y-2 sm:space-y-3 max-h-32 sm:max-h-40 overflow-y-auto custom-scrollbar">
+      <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar">
         {selectedFiles.map((file, index) => (
           <div
             key={`${file.name}-${file.size}-${index}`}
-            className="flex items-center justify-between p-3 sm:p-4 bg-gradient-to-r from-slate-50 to-slate-100 rounded-xl sm:rounded-2xl border border-slate-200 group hover:shadow-md transition-all duration-200"
+            className="flex items-center justify-between p-3 bg-gradient-to-r from-slate-50 to-slate-100 dark:from-white/5 dark:to-white/5 rounded-xl border border-slate-200 dark:border-white/10 group hover:shadow-md transition-all duration-200"
           >
-            <div className="flex items-center space-x-2 sm:space-x-3 flex-1 min-w-0">
+            <div className="flex items-center space-x-3 flex-1 min-w-0">
               <div className="flex-shrink-0">{getFileTypeIcon(file.type)}</div>
 
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-slate-900 truncate">
+                <p className="text-sm font-semibold text-slate-900 dark:text-gray-200 truncate">
                   {file.name}
                 </p>
-                <p className="text-xs text-slate-500 font-medium">
+                <p className="text-xs text-slate-500 dark:text-gray-500 font-medium">
                   {formatFileSize(file.size)}
                 </p>
               </div>
@@ -209,9 +207,9 @@ export const FileSelector: React.FC<FileSelectorProps> = ({
 
             <button
               onClick={() => removeFile(index)}
-              className="p-1.5 sm:p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg sm:rounded-xl transition-all duration-200 opacity-0 group-hover:opacity-100"
+              className="p-1.5 text-slate-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-all duration-200 opacity-0 group-hover:opacity-100"
             >
-              <X className="h-3 w-3 sm:h-4 sm:w-4" />
+              <X className="h-4 w-4" />
             </button>
           </div>
         ))}
@@ -220,10 +218,10 @@ export const FileSelector: React.FC<FileSelectorProps> = ({
       {/* Add More Files */}
       {selectedFiles.length < maxFiles && (
         <div
-          className={`relative border-2 border-dashed rounded-xl sm:rounded-2xl p-3 sm:p-4 transition-all duration-300 cursor-pointer group ${
+          className={`relative border-2 border-dashed rounded-xl p-3 transition-all duration-300 cursor-pointer group ${
             isDragOver
-              ? "border-blue-400 bg-blue-50/50 scale-105"
-              : "border-slate-300 hover:border-blue-400 hover:bg-blue-50/30"
+              ? "border-blue-400 bg-blue-50/10 scale-[1.02]"
+              : "border-slate-300 dark:border-white/20 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50/5 dark:hover:bg-blue-500/10"
           }`}
           onDragOver={handleDragOver}
           onDragEnter={handleDragEnter}
@@ -240,9 +238,9 @@ export const FileSelector: React.FC<FileSelectorProps> = ({
 
           <div className="text-center pointer-events-none">
             <div className="flex items-center justify-center space-x-2">
-              <Folder className="h-3 w-3 sm:h-4 sm:w-4 text-slate-500 group-hover:text-blue-600 transition-colors" />
-              <p className="text-xs sm:text-sm font-medium text-slate-600 group-hover:text-blue-700 transition-colors">
-                {isDragOver ? "Drop more files here" : "Add more files"}
+              <Folder className="h-4 w-4 text-slate-500 dark:text-gray-500 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors" />
+              <p className="text-xs font-medium text-slate-600 dark:text-gray-400 group-hover:text-blue-700 dark:group-hover:text-blue-300 transition-colors">
+                {isDragOver ? "Drop more" : "Add more files"}
               </p>
             </div>
           </div>

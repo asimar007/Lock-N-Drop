@@ -3,7 +3,7 @@
  */
 
 export class FileEncryption {
-  private static readonly ALGORITHM = 'AES-GCM';
+  private static readonly ALGORITHM = "AES-GCM";
   private static readonly KEY_LENGTH = 256;
   private static readonly IV_LENGTH = 12;
 
@@ -17,19 +17,22 @@ export class FileEncryption {
         length: this.KEY_LENGTH,
       },
       true,
-      ['encrypt', 'decrypt']
+      ["encrypt", "decrypt"]
     );
   }
 
   /**
    * Encrypt file data
    */
-  static async encryptFile(data: ArrayBuffer, key: CryptoKey): Promise<{
+  static async encryptFile(
+    data: ArrayBuffer,
+    key: CryptoKey
+  ): Promise<{
     encryptedData: ArrayBuffer;
     iv: Uint8Array;
   }> {
     const iv = crypto.getRandomValues(new Uint8Array(this.IV_LENGTH));
-    
+
     const encryptedData = await crypto.subtle.encrypt(
       {
         name: this.ALGORITHM,
@@ -53,7 +56,7 @@ export class FileEncryption {
     return await crypto.subtle.decrypt(
       {
         name: this.ALGORITHM,
-        iv: iv,
+        iv: iv as unknown as BufferSource,
       },
       key,
       encryptedData
@@ -64,7 +67,7 @@ export class FileEncryption {
    * Export key to transferable format
    */
   static async exportKey(key: CryptoKey): Promise<ArrayBuffer> {
-    return await crypto.subtle.exportKey('raw', key);
+    return await crypto.subtle.exportKey("raw", key);
   }
 
   /**
@@ -72,14 +75,14 @@ export class FileEncryption {
    */
   static async importKey(keyData: ArrayBuffer): Promise<CryptoKey> {
     return await crypto.subtle.importKey(
-      'raw',
+      "raw",
       keyData,
       {
         name: this.ALGORITHM,
         length: this.KEY_LENGTH,
       },
       true,
-      ['encrypt', 'decrypt']
+      ["encrypt", "decrypt"]
     );
   }
 }
@@ -88,21 +91,12 @@ export class FileEncryption {
  * Generate a secure random session code
  */
 export function generateSessionCode(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let result = '';
-  
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let result = "";
+
   for (let i = 0; i < 6; i++) {
     result += chars.charAt(Math.floor(Math.random() * chars.length));
   }
-  
-  return result;
-}
 
-/**
- * Hash data for integrity verification
- */
-export async function hashData(data: ArrayBuffer): Promise<string> {
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  return result;
 }

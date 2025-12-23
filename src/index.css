@@ -5,18 +5,18 @@
 /* Dark mode support */
 @layer base {
   html {
-    @apply scroll-smooth;
+    @apply scroll-smooth antialiased;
   }
-  
+
   body {
-    @apply transition-colors duration-300;
+    @apply transition-colors duration-300 bg-black text-white;
   }
 }
 
 /* Custom scrollbar styles */
 .custom-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: rgb(203 213 225) transparent;
+  scrollbar-color: #333 transparent;
 }
 
 .custom-scrollbar::-webkit-scrollbar {
@@ -28,25 +28,12 @@
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background-color: rgb(203 213 225);
+  background-color: #333;
   border-radius: 3px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background-color: rgb(148 163 184);
-}
-
-/* Dark mode scrollbar */
-.dark .custom-scrollbar {
-  scrollbar-color: rgb(71 85 105) transparent;
-}
-
-.dark .custom-scrollbar::-webkit-scrollbar-thumb {
-  background-color: rgb(71 85 105);
-}
-
-.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background-color: rgb(100 116 139);
+  background-color: #555;
 }
 
 /* Smooth animations */
@@ -54,15 +41,15 @@
   .animate-fade-in {
     animation: fadeIn 0.5s ease-in-out;
   }
-  
+
   .animate-slide-up {
     animation: slideUp 0.3s ease-out;
   }
-  
+
   .animate-slide-down {
     animation: slideDown 0.3s ease-out;
   }
-  
+
   .animate-pulse-slow {
     animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
@@ -103,26 +90,14 @@
 
 /* Glass morphism effects */
 .glass {
-  background: rgba(255, 255, 255, 0.25);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-}
-
-.dark .glass {
-  background: rgba(15, 23, 42, 0.25);
+  background: rgba(0, 0, 0, 0.5);
   border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
 }
 
 /* Gradient text */
 .gradient-text {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.dark .gradient-text {
-  background: linear-gradient(135deg, #93c5fd 0%, #c4b5fd 100%);
+  background: linear-gradient(135deg, #fff 0%, #aaa 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -133,15 +108,15 @@
   .text-responsive {
     @apply text-sm sm:text-base;
   }
-  
+
   .p-responsive {
     @apply p-4 sm:p-6 lg:p-8;
   }
-  
+
   .m-responsive {
     @apply m-4 sm:m-6 lg:m-8;
   }
-  
+
   .rounded-responsive {
     @apply rounded-xl sm:rounded-2xl lg:rounded-3xl;
   }
@@ -152,7 +127,7 @@
   button {
     min-height: 44px; /* iOS recommended touch target size */
   }
-  
+
   input[type="file"] {
     min-height: 44px;
   }
@@ -161,63 +136,21 @@
 /* Improved focus states for accessibility */
 @layer utilities {
   .focus-ring {
-    @apply focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2;
-  }
-  
-  .dark .focus-ring {
-    @apply focus:ring-blue-400 focus:ring-offset-slate-900;
+    @apply focus:outline-none focus:ring-1 focus:ring-white focus:ring-offset-1 focus:ring-offset-black;
   }
 }
 
-/* Better text contrast for small screens */
-@media (max-width: 640px) {
-  .text-slate-500 {
-    color: #64748b;
-  }
-  
-  .text-slate-400 {
-    color: #64748b;
-  }
-  
-  .dark .text-slate-500 {
-    color: #94a3b8;
-  }
-  
-  .dark .text-slate-400 {
-    color: #94a3b8;
-  }
-}
-
-/* Dark mode transitions */
+/* Transitions */
 * {
-  @apply transition-colors duration-300;
-}
-
-/* Enhanced button hover effects */
-@layer utilities {
-  .btn-hover-lift {
-    @apply transform transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg;
-  }
-  
-  .btn-hover-glow {
-    @apply transition-all duration-300 hover:shadow-xl;
-  }
-  
-  .dark .btn-hover-glow {
-    @apply hover:shadow-2xl hover:shadow-blue-500/25;
-  }
+  @apply transition-colors duration-200;
 }
 
 /* Custom selection colors */
 ::selection {
-  @apply bg-blue-200 text-blue-900;
+  @apply bg-white text-black;
 }
 
-.dark ::selection {
-  @apply bg-blue-800 text-blue-100;
-}
-
-/* Loading spinner for dark mode */
+/* Loading spinner */
 @keyframes spin-slow {
   from {
     transform: rotate(0deg);
@@ -231,30 +164,9 @@
   animation: spin-slow 3s linear infinite;
 }
 
-/* Enhanced focus indicators for dark mode */
-.dark input:focus,
-.dark textarea:focus,
-.dark select:focus {
-  @apply ring-blue-400 border-blue-400;
-}
-
-/* Improved contrast for dark mode cards */
-.dark .card-dark {
-  @apply bg-slate-800/50 border-slate-700/50 backdrop-blur-xl;
-}
-
-/* Status indicators */
-.status-online {
-  @apply bg-emerald-500 shadow-emerald-500/50;
-  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.3);
-}
-
-.status-offline {
-  @apply bg-slate-400 shadow-slate-400/50;
-  box-shadow: 0 0 0 3px rgba(148, 163, 184, 0.3);
-}
-
-.dark .status-offline {
-  @apply bg-slate-600 shadow-slate-600/50;
-  box-shadow: 0 0 0 3px rgba(71, 85, 105, 0.3);
+/* Input styles */
+input:focus,
+textarea:focus,
+select:focus {
+  @apply ring-1 ring-white border-white outline-none;
 }

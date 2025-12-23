@@ -45,22 +45,22 @@ export const ErrorDisplay: React.FC<ErrorDisplayProps> = ({
   return (
     <div className="relative group">
       <div
-        className={`absolute inset-0 bg-gradient-to-r ${styles.gradient} rounded-xl sm:rounded-2xl blur-xl opacity-20 group-hover:opacity-30 transition-opacity`}
+        className={`absolute inset-0 bg-gradient-to-r ${styles.gradient} rounded-2xl blur-xl opacity-20 group-hover:opacity-30 transition-opacity`}
       ></div>
       <div
-        className={`relative bg-gradient-to-r ${styles.container} border rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-lg`}
+        className={`relative bg-gradient-to-r ${styles.container} border rounded-2xl p-6 shadow-lg`}
       >
-        <div className="flex items-start space-x-3 sm:space-x-4">
+        <div className="flex items-start space-x-4">
           <div
-            className={`flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 bg-white/80 rounded-xl flex items-center justify-center ${styles.icon}`}
+            className={`flex-shrink-0 w-10 h-10 bg-white/80 rounded-xl flex items-center justify-center ${styles.icon}`}
           >
-            <AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5" />
+            <AlertTriangle className="h-5 w-5" />
           </div>
 
           <div className="flex-1 min-w-0">
-            <div className="flex items-center space-x-2 mb-1 sm:mb-2">
-              <Shield className={`h-3 w-3 sm:h-4 sm:w-4 ${styles.icon}`} />
-              <p className={`text-xs sm:text-sm font-semibold ${styles.text}`}>
+            <div className="flex items-center space-x-2 mb-2">
+              <Shield className={`h-4 w-4 ${styles.icon}`} />
+              <p className={`text-sm font-semibold ${styles.text}`}>
                 Security Notice
               </p>
             </div>
@@ -69,24 +69,24 @@ export const ErrorDisplay: React.FC<ErrorDisplayProps> = ({
             </p>
           </div>
 
-          <div className="flex items-center space-x-1 sm:space-x-2 flex-shrink-0">
+          <div className="flex items-center space-x-2 flex-shrink-0">
             {onRetry && (
               <button
                 onClick={onRetry}
-                className={`p-1.5 sm:p-2 hover:bg-white/50 rounded-lg sm:rounded-xl transition-colors ${styles.icon} bg-white/30`}
+                className={`p-2 hover:bg-white/50 rounded-xl transition-colors ${styles.icon} bg-white/30`}
                 title="Retry"
               >
-                <RefreshCw className="h-3 w-3 sm:h-4 sm:w-4" />
+                <RefreshCw className="h-4 w-4" />
               </button>
             )}
 
             {onDismiss && (
               <button
                 onClick={onDismiss}
-                className={`p-1.5 sm:p-2 hover:bg-white/50 rounded-lg sm:rounded-xl transition-colors ${styles.icon} bg-white/30`}
+                className={`p-2 hover:bg-white/50 rounded-xl transition-colors ${styles.icon} bg-white/30`}
                 title="Dismiss"
               >
-                <X className="h-3 w-3 sm:h-4 sm:w-4" />
+                <X className="h-4 w-4" />
               </button>
             )}
           </div>
