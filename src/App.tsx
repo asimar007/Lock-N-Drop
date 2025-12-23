@@ -193,7 +193,7 @@ function App() {
           {/* Hero Text */}
           {mode === "select" && (
             <div className="text-center mb-12 animate-fade-in space-y-4">
-              <h1 className="text-6xl font-bold tracking-tight max-w-3xl mx-auto bg-clip-text text-transparent bg-gradient-to-b from-white to-gray-500">
+              <h1 className="text-4xl md:text-6xl font-bold tracking-tight max-w-3xl mx-auto bg-clip-text text-transparent bg-gradient-to-b from-white to-gray-500">
                 Share files securely. <br /> Leave no trace.
               </h1>
             </div>
