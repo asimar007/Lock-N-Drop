@@ -386,20 +386,24 @@ function App() {
                 </div>
 
                 <div className="mb-6">
-                  <SessionCodeDisplay
-                    code={session.code}
-                    expiresAt={Date.now() + 10 * 60 * 1000} // 10 minutes
-                  />
+                  {connectionStatus !== "connected" &&
+                    connectionStatus !== "transferring" && (
+                      <>
+                        <SessionCodeDisplay
+                          code={session.code}
+                          expiresAt={Date.now() + 10 * 60 * 1000} // 10 minutes
+                        />
 
-                  {session.status === "waiting" &&
-                    connectionStatus !== "connected" && (
-                      <div className="mt-6 flex items-center justify-center gap-2 text-sm text-amber-500">
-                        <span className="relative flex h-3 w-3">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                          <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
-                        </span>
-                        Waiting for peer connection...
-                      </div>
+                        {session.status === "waiting" && (
+                          <div className="mt-6 flex items-center justify-center gap-2 text-sm text-amber-500">
+                            <span className="relative flex h-3 w-3">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
+                            </span>
+                            Waiting for peer connection...
+                          </div>
+                        )}
+                      </>
                     )}
 
                   {connectionStatus === "connected" &&
