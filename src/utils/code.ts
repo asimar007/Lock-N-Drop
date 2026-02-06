@@ -3,12 +3,7 @@
  * Format: 6 alphanumeric characters (uppercase)
  */
 export function generateSessionCode(): string {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let result = "";
-
-  for (let i = 0; i < 6; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-
-  return result;
+  // 4 chars is enough for ~1.6M combinations (36^4)
+  // Good balance of short code vs collision risk for small/medium traffic
+  return Math.random().toString(36).substring(2, 6).toUpperCase();
 }

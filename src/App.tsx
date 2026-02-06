@@ -74,9 +74,9 @@ function App() {
       const sanitizedCode = codeParam
         .toUpperCase()
         .replace(/[^A-Z0-9]/g, "")
-        .slice(0, 6);
+        .slice(0, 4);
 
-      if (sanitizedCode.length === 6) {
+      if (sanitizedCode.length === 4) {
         setInitialCode(sanitizedCode);
         setMode("receive");
         // Clear the query param from URL without refreshing

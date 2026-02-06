@@ -14,9 +14,9 @@ export const CodeEntry: React.FC<CodeEntryProps> = ({
   initialCode = "",
 }) => {
   const [code, setCode] = useState(() => {
-    const arr = ["", "", "", "", "", ""];
+    const arr = ["", "", "", ""];
     if (initialCode) {
-      for (let i = 0; i < initialCode.length && i < 6; i++) {
+      for (let i = 0; i < initialCode.length && i < 4; i++) {
         arr[i] = initialCode[i];
       }
     }
@@ -30,7 +30,7 @@ export const CodeEntry: React.FC<CodeEntryProps> = ({
   useEffect(() => {
     if (
       initialCode &&
-      initialCode.length === 6 &&
+      initialCode.length === 4 &&
       !isConnecting &&
       !hasAutoSubmitted.current
     ) {
@@ -48,7 +48,7 @@ export const CodeEntry: React.FC<CodeEntryProps> = ({
     setCode(newCode);
 
     // Auto-focus next input
-    if (upperValue && index < 5) {
+    if (upperValue && index < 3) {
       inputRefs.current[index + 1]?.focus();
     }
 
@@ -73,10 +73,10 @@ export const CodeEntry: React.FC<CodeEntryProps> = ({
       .getData("text")
       .toUpperCase()
       .replace(/[^A-Z0-9]/g, "")
-      .slice(0, 6);
-    const newCode = ["", "", "", "", "", ""];
+      .slice(0, 4);
+    const newCode = ["", "", "", ""];
 
-    for (let i = 0; i < pastedData.length && i < 6; i++) {
+    for (let i = 0; i < pastedData.length && i < 4; i++) {
       newCode[i] = pastedData[i];
     }
 
@@ -118,13 +118,13 @@ export const CodeEntry: React.FC<CodeEntryProps> = ({
                 Receive Files
               </h3>
               <p className="text-gray-400 text-base">
-                Enter the 6-character sharing code
+                Enter the 4-character sharing code
               </p>
             </div>
           </div>
 
           {/* Code Input - Responsive Grid */}
-          <div className="grid grid-cols-6 gap-3 max-w-xs mx-auto">
+          <div className="grid grid-cols-4 gap-4 max-w-xs mx-auto">
             {code.map((digit, index) => (
               <input
                 key={index}

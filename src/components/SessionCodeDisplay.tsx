@@ -98,9 +98,12 @@ export const SessionCodeDisplay: React.FC<SessionCodeDisplayProps> = ({
           {/* Code Display - Responsive */}
           <div className="relative">
             <div className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-gray-900 dark:to-black border-2 border-slate-200 dark:border-white/10 rounded-2xl p-8 font-mono text-4xl font-bold text-slate-900 dark:text-white tracking-wider shadow-inner">
-              <div className="grid grid-cols-6 gap-2 max-w-xs mx-auto">
+              <div className="grid grid-cols-4 gap-4 max-w-xs mx-auto mb-6">
                 {code.split("").map((char, index) => (
-                  <div key={index} className="text-center">
+                  <div
+                    key={index}
+                    className="aspect-square flex items-center justify-center text-3xl font-mono font-bold bg-white/5 border-2 border-white/20 rounded-xl"
+                  >
                     {char}
                   </div>
                 ))}
