@@ -5,14 +5,31 @@ interface CodeEntryProps {
   onCodeSubmit: (code: string) => void;
   isConnecting: boolean;
   error?: string;
+  initialCode?: string;
 }
 
 export const CodeEntry: React.FC<CodeEntryProps> = ({
   onCodeSubmit,
   isConnecting,
+  initialCode = "",
 }) => {
-  const [code, setCode] = useState(["", "", "", "", "", ""]);
+  const [code, setCode] = useState(() => {
+    const arr = ["", "", "", "", "", ""];
+    if (initialCode) {
+      for (let i = 0; i < initialCode.length && i < 6; i++) {
+        arr[i] = initialCode[i];
+      }
+    }
+    return arr;
+  });
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  // Auto-submit if initialCode is provided
+  useEffect(() => {
+    if (initialCode && initialCode.length === 6 && !isConnecting) {
+      onCodeSubmit(initialCode);
+    }
+  }, [initialCode, isConnecting, onCodeSubmit]);
 
   const handleInputChange = (index: number, value: string) => {
     if (value.length > 1) return; // Prevent multiple characters
@@ -65,8 +82,10 @@ export const CodeEntry: React.FC<CodeEntryProps> = ({
   const isCodeComplete = code.every((char) => char !== "");
 
   useEffect(() => {
-    inputRefs.current[0]?.focus();
-  }, []);
+    if (!initialCode) {
+      inputRefs.current[0]?.focus();
+    }
+  }, [initialCode]);
 
   return (
     <div className="relative group">

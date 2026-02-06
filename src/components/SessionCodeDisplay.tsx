@@ -41,6 +41,39 @@ export const SessionCodeDisplay: React.FC<SessionCodeDisplayProps> = ({
     }
   };
 
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  // ... (copyToClipboard existing logic)
+
+  const shareLink = async () => {
+    const url = `${window.location.origin}/?code=${code}`;
+    const shareData = {
+      title: "Lock-N-Drop Secure File Transfer",
+      text: `Click to receive reliable, encrypted files: ${code}`,
+      url: url,
+    };
+
+    try {
+      if (
+        navigator.share &&
+        navigator.canShare &&
+        navigator.canShare(shareData)
+      ) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(url);
+        setLinkCopied(true);
+        setTimeout(() => setLinkCopied(false), 2000);
+      }
+    } catch (error) {
+      console.error("Error sharing:", error);
+      // Fallback to clipboard if share fails (e.g. user canceled)
+      await navigator.clipboard.writeText(url);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    }
+  };
+
   const isExpiringSoon = timeLeft < 60000; // Less than 1 minute
 
   return (
@@ -75,20 +108,49 @@ export const SessionCodeDisplay: React.FC<SessionCodeDisplayProps> = ({
             </div>
           </div>
 
-          {/* Copy Button */}
-          <div className="flex items-center justify-center">
+          {/* Action Buttons */}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            {/* Copy Code Button */}
             <button
               onClick={copyToClipboard}
-              className={`px-8 py-3 rounded-2xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 text-base ${
+              className={`w-full sm:w-auto px-8 py-3 rounded-2xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 text-base flex items-center justify-center space-x-2 ${
                 copied
-                  ? "bg-gradient-to-r from-emerald-500 to-teal-500 text-white"
+                  ? "bg-emerald-500 text-white"
                   : "bg-white text-black border border-gray-200 dark:bg-white dark:text-black hover:bg-gray-100"
               }`}
             >
-              <div className="flex items-center space-x-2">
-                <Copy className="h-4 w-4" />
-                <span>{copied ? "Copied!" : "Copy Code"}</span>
-              </div>
+              <Copy className="h-4 w-4" />
+              <span>{copied ? "Copied!" : "Copy Code"}</span>
+            </button>
+
+            {/* Share Link Button */}
+            <button
+              onClick={shareLink}
+              className={`w-full sm:w-auto px-8 py-3 rounded-2xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 text-base flex items-center justify-center space-x-2 ${
+                linkCopied
+                  ? "bg-blue-500 text-white"
+                  : "bg-blue-600 text-white hover:bg-blue-500"
+              }`}
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="lucide lucide-share-2"
+              >
+                <circle cx="18" cy="5" r="3" />
+                <circle cx="6" cy="12" r="3" />
+                <circle cx="18" cy="19" r="3" />
+                <line x1="8.59" x2="15.42" y1="13.51" y2="17.49" />
+                <line x1="15.41" x2="8.59" y1="6.51" y2="10.49" />
+              </svg>
+              <span>{linkCopied ? "Link Copied!" : "Share Link"}</span>
             </button>
           </div>
 

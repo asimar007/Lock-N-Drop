@@ -16,6 +16,8 @@ import { TransferProgress } from "./components/TransferProgress";
 import { SetupInstructions } from "./components/SetupInstructions";
 import { ErrorDisplay } from "./components/ErrorDisplay";
 import { Toast } from "./components/Toast";
+import { PrivacyPolicy, TermsOfService } from "./components/LegalModals";
+import { NotFound } from "./components/NotFound";
 
 import { useFileTransfer } from "./hooks/useFileTransfer";
 
@@ -42,10 +44,89 @@ function App() {
     dismissError,
   } = useFileTransfer();
 
-  // Enforce dark mode on mount
+  const [showPrivacy, setShowPrivacy] = useState(false);
+  const [showTerms, setShowTerms] = useState(false);
+
+  const [initialCode, setInitialCode] = useState("");
+
+  // Enforce dark mode on mount and check for shared code
   useEffect(() => {
     document.documentElement.classList.add("dark");
+
+    // Check for "code" query parameter
+    const params = new URLSearchParams(window.location.search);
+    const codeParam = params.get("code");
+
+    if (codeParam) {
+      // Check if WE are the sender of this code (via sessionStorage)
+      const isMyCode = sessionStorage.getItem("lnd_sender_code") === codeParam;
+
+      if (isMyCode) {
+        // Clear the URL and storage, stay in "select" mode
+        window.history.replaceState(
+          {},
+          document.title,
+          window.location.pathname,
+        );
+        sessionStorage.removeItem("lnd_sender_code");
+        return;
+      }
+
+      const sanitizedCode = codeParam
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, "")
+        .slice(0, 6);
+
+      if (sanitizedCode.length === 6) {
+        setInitialCode(sanitizedCode);
+        setMode("receive");
+        // Clear the query param from URL without refreshing
+        window.history.replaceState(
+          {},
+          document.title,
+          window.location.pathname,
+        );
+      }
+    }
   }, []);
+
+  // Update URL with code when session is active (Sender)
+  useEffect(() => {
+    if (session && session.role === "sender" && session.code) {
+      const url = new URL(window.location.href);
+      url.searchParams.set("code", session.code);
+      window.history.pushState({}, "", url);
+
+      // Mark this code as ours
+      sessionStorage.setItem("lnd_sender_code", session.code);
+    } else if (!session && mode === "select") {
+      // Clear code from URL when resetting to select mode
+      const url = new URL(window.location.href);
+      if (url.searchParams.has("code")) {
+        url.searchParams.delete("code");
+        window.history.pushState({}, "", url);
+      }
+      // Clear our ownership flag
+      sessionStorage.removeItem("lnd_sender_code");
+    }
+  }, [session, mode]);
+
+  // Prevent accidental refresh during active session
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (
+        session &&
+        session.status !== "completed" &&
+        session.status !== "failed"
+      ) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [session]);
 
   // Check if Supabase is configured
   const isSupabaseConfigured = !!(
@@ -113,6 +194,14 @@ function App() {
       handleReset();
     });
   }, [setOnTransferComplete, handleReset]);
+
+  // Check proper path
+  if (
+    window.location.pathname !== "/" &&
+    window.location.pathname !== "/index.html"
+  ) {
+    return <NotFound />;
+  }
 
   return (
     <div className="min-h-screen relative font-sans selection:bg-white selection:text-black bg-black text-white">
@@ -353,6 +442,7 @@ function App() {
                       onCodeSubmit={handleCodeSubmit}
                       isConnecting={connectionStatus === "connecting"}
                       error={error}
+                      initialCode={initialCode}
                     />
                   </div>
                 )}
@@ -390,13 +480,33 @@ function App() {
           </div>
 
           <footer className="mt-auto pt-12 text-center text-xs text-gray-600">
-            <p className="flex items-center justify-center gap-2">
+            <p className="flex items-center justify-center gap-2 mb-4">
               <Lock className="h-3 w-3" /> E2E Encrypted • Transient • Open
               Source
             </p>
+            <div className="flex items-center justify-center gap-6 text-gray-500">
+              <button
+                onClick={() => setShowPrivacy(true)}
+                className="hover:text-white transition-colors"
+              >
+                Privacy Policy
+              </button>
+              <button
+                onClick={() => setShowTerms(true)}
+                className="hover:text-white transition-colors"
+              >
+                Terms of Service
+              </button>
+            </div>
           </footer>
         </main>
       </div>
+
+      <PrivacyPolicy
+        isOpen={showPrivacy}
+        onClose={() => setShowPrivacy(false)}
+      />
+      <TermsOfService isOpen={showTerms} onClose={() => setShowTerms(false)} />
     </div>
   );
 }
