@@ -44,11 +44,8 @@ export const useFileTransfer = () => {
                         ? ("completed" as const)
                         : ("transferring" as const),
                   }
-                : file
+                : file,
             );
-
-            // Note: We no longer auto-complete here for Sender.
-            // We wait for the Receiver to download (session completion).
 
             return { ...prev, files: updatedFiles };
           });
@@ -78,32 +75,21 @@ export const useFileTransfer = () => {
               status: "completed",
             };
           });
-        });
 
-        // Setup completion handler (shared wrapper)
-        const handleSessionComplete = () => {
+          // Trigger completion callback
           if (onTransferCompleteRef.current) {
-            // Slightly delay to ensure UI updates
             setTimeout(() => {
               onTransferCompleteRef.current?.();
             }, 1000);
           }
-        };
+        });
 
         let code: string;
 
         if (role === "sender") {
           code = await fileTransferService.current.createSession();
-          // Sender listens for DB updates from Receiver
-          fileTransferService.current.listenForSessionCompletion(
-            handleSessionComplete
-          );
         } else {
           code = ""; // Will be set when joining
-          // Receiver triggers locally when download finishes
-          fileTransferService.current.setSessionCompletionHandler(
-            handleSessionComplete
-          );
         }
 
         const newSession: TransferSession = {
@@ -136,7 +122,7 @@ export const useFileTransfer = () => {
         throw error;
       }
     },
-    []
+    [],
   );
 
   const startTransfer = useCallback(
@@ -145,7 +131,7 @@ export const useFileTransfer = () => {
 
       try {
         setSession((prev) =>
-          prev ? { ...prev, status: "transferring" } : prev
+          prev ? { ...prev, status: "transferring" } : prev,
         );
         setError("");
 
@@ -157,7 +143,7 @@ export const useFileTransfer = () => {
             if (!prev) return prev;
 
             const updatedFiles = prev.files.map((f, index) =>
-              index === i ? { ...f, status: "transferring" as const } : f
+              index === i ? { ...f, status: "transferring" as const } : f,
             );
 
             return { ...prev, files: updatedFiles };
@@ -177,7 +163,7 @@ export const useFileTransfer = () => {
                           ? ("completed" as const)
                           : ("transferring" as const),
                     }
-                  : f
+                  : f,
               );
 
               return { ...prev, files: updatedFiles };
@@ -186,13 +172,20 @@ export const useFileTransfer = () => {
         }
 
         setSession((prev) => (prev ? { ...prev, status: "completed" } : prev));
+
+        // Trigger completion for sender
+        if (onTransferCompleteRef.current) {
+          setTimeout(() => {
+            onTransferCompleteRef.current?.();
+          }, 1000);
+        }
       } catch (error) {
         console.error("Transfer failed:", error);
         setError("Transfer failed. Please try again.");
         setSession((prev) => (prev ? { ...prev, status: "failed" } : prev));
       }
     },
-    [session]
+    [session],
   );
 
   const connectToSession = useCallback(async (code: string) => {
@@ -203,42 +196,72 @@ export const useFileTransfer = () => {
       if (!fileTransferService.current) {
         fileTransferService.current = new FileTransferService();
 
-        // Setup handlers
         fileTransferService.current.setConnectionStateHandler((state) => {
           setConnectionStatus(state);
           if (state === "failed") {
             setError("Connection failed. Please try again.");
+          } else if (state === "connected") {
+            setError("");
           }
         });
 
-        fileTransferService.current.setFileReceivedHandler((file) => {
-          console.log("File received:", file.name);
-          downloadFile(file.data, file.name, file.type);
-
+        fileTransferService.current.setFileStartedHandler((file) => {
+          console.log("File started:", file.name);
           setSession((prev) => {
             if (!prev) return prev;
 
+            // Check if file already exists to avoid duplicates
+            if (prev.files.some((f) => f.id === file.fileId)) return prev;
+
             const fileTransfer: FileTransfer = {
-              id: crypto.randomUUID(),
+              id: file.fileId,
               name: file.name,
-              size: file.data.byteLength,
+              size: file.size,
               type: file.type,
-              progress: 1,
-              status: "completed",
+              progress: 0,
+              status: "transferring",
             };
 
             return {
               ...prev,
               files: [...prev.files, fileTransfer],
-              status: "completed",
+              status: "transferring",
             };
           });
         });
 
-        fileTransferService.current.setProgressHandler((fileId, progress) => {
+        fileTransferService.current.setFileReceivedHandler((file) => {
+          console.log("File received:", file.name);
+          downloadFile(file.data, file.name, file.type);
           setSession((prev) => {
             if (!prev) return prev;
 
+            // Update existing file to completed
+            const updatedFiles = prev.files.map((f) => {
+              if (f.name === file.name) {
+                return { ...f, progress: 1, status: "completed" as const };
+              }
+              return f;
+            });
+
+            return {
+              ...prev,
+              files: updatedFiles,
+              status: "completed",
+            };
+          });
+
+          if (onTransferCompleteRef.current) {
+            setTimeout(() => {
+              onTransferCompleteRef.current?.();
+            }, 1000);
+          }
+        });
+
+        fileTransferService.current.setProgressHandler((fileId, progress) => {
+          // ... same progress handler ...
+          setSession((prev) => {
+            if (!prev) return prev;
             const updatedFiles = prev.files.map((file) =>
               file.id === fileId
                 ? {
@@ -249,9 +272,8 @@ export const useFileTransfer = () => {
                         ? ("completed" as const)
                         : ("transferring" as const),
                   }
-                : file
+                : file,
             );
-
             return { ...prev, files: updatedFiles };
           });
         });

@@ -4,17 +4,17 @@ Contact: asimsk777@gmail.com
 Location: Kolkata, India
 
 /* THANKS */
-Supabase - Backend infrastructure
+/* THANKS */
+PeerJS - WebRTC infrastructure
 React - Frontend framework
 Tailwind CSS - Styling framework
 Lucide - Icon library
-Web Crypto API - Encryption capabilities
 
 /* SITE */
-Last update: 2024/12/29
-Language: English, Hindi & Bengali
+Last update: 2024/10/08
+Language: English
 Doctype: HTML5
 IDE: VS Code
 Standards: HTML5, CSS3, ES2020+
-Components: React, TypeScript, Supabase
-Security: AES-256-GCM, HTTPS, RLS
+Components: React, TypeScript, PeerJS
+Security: DTLS-SRTP, HTTPS

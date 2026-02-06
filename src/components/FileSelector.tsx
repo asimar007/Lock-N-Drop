@@ -16,14 +16,12 @@ interface FileSelectorProps {
   onFilesSelected: (files: File[]) => void;
   selectedFiles: File[];
   maxFiles?: number;
-  maxFileSize?: number; // in bytes
 }
 
 export const FileSelector: React.FC<FileSelectorProps> = ({
   onFilesSelected,
   selectedFiles,
   maxFiles = 10,
-  maxFileSize = 20 * 1024 * 1024, // 20MB default
 }) => {
   const [isDragOver, setIsDragOver] = useState(false);
 
@@ -56,31 +54,21 @@ export const FileSelector: React.FC<FileSelectorProps> = ({
   const processFiles = useCallback(
     (fileList: FileList | File[]) => {
       const files = Array.from(fileList);
-      const validFiles = files.filter((file) => {
-        if (file.size > maxFileSize) {
-          console.warn(
-            `File ${file.name} is too large (${formatFileSize(
-              file.size
-            )}). Maximum size is ${formatFileSize(maxFileSize)}.`
-          );
-          return false;
-        }
-        return true;
-      });
+      // No size validation needed for P2P
 
-      const totalFiles = validFiles.length + selectedFiles.length;
+      const totalFiles = files.length + selectedFiles.length;
       if (totalFiles > maxFiles) {
         console.warn(
-          `Cannot add ${validFiles.length} files. Maximum ${maxFiles} files allowed.`
+          `Cannot add ${files.length} files. Maximum ${maxFiles} files allowed.`,
         );
         const allowedCount = maxFiles - selectedFiles.length;
-        const filesToAdd = validFiles.slice(0, allowedCount);
+        const filesToAdd = files.slice(0, allowedCount);
         onFilesSelected([...selectedFiles, ...filesToAdd]);
       } else {
-        onFilesSelected([...selectedFiles, ...validFiles]);
+        onFilesSelected([...selectedFiles, ...files]);
       }
     },
-    [maxFileSize, maxFiles, selectedFiles, onFilesSelected]
+    [maxFiles, selectedFiles, onFilesSelected],
   );
 
   const handleDrop = useCallback(
@@ -94,7 +82,7 @@ export const FileSelector: React.FC<FileSelectorProps> = ({
         processFiles(files);
       }
     },
-    [processFiles]
+    [processFiles],
   );
 
   const handleFileSelect = useCallback(
@@ -107,7 +95,7 @@ export const FileSelector: React.FC<FileSelectorProps> = ({
       // Reset input value to allow selecting the same file again
       e.target.value = "";
     },
-    [processFiles]
+    [processFiles],
   );
 
   const removeFile = useCallback(
@@ -115,7 +103,7 @@ export const FileSelector: React.FC<FileSelectorProps> = ({
       const newFiles = selectedFiles.filter((_, i) => i !== index);
       onFilesSelected(newFiles);
     },
-    [selectedFiles, onFilesSelected]
+    [selectedFiles, onFilesSelected],
   );
 
   const getFileTypeIcon = (mimeType: string) => {
@@ -175,7 +163,7 @@ export const FileSelector: React.FC<FileSelectorProps> = ({
               {isDragOver ? "Drop contents" : "Drop files or click"}
             </p>
             <p className="text-xs text-slate-500 dark:text-gray-500">
-              Max {formatFileSize(maxFileSize)}
+              No size limit • Auto-Chunking
             </p>
           </div>
         </div>

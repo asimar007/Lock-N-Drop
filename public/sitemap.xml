@@ -6,7 +6,7 @@
 
   <!-- Homepage -->
   <url>
-    <loc>https://www.lockndrop.asimsk.online/</loc>
+    <loc>https://www.lockndrop.asimsk.site/</loc>
     <lastmod>2024-12-29</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
@@ -14,7 +14,7 @@
 
   <!-- Send Files Page -->
   <url>
-    <loc>https://www.lockndrop.asimsk.online/#send</loc>
+    <loc>https://www.lockndrop.asimsk.site/#send</loc>
     <lastmod>2024-12-29</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
@@ -22,7 +22,7 @@
 
   <!-- Receive Files Page -->
   <url>
-    <loc>https://www.lockndrop.asimsk.online/#receive</loc>
+    <loc>https://www.lockndrop.asimsk.site/#receive</loc>
     <lastmod>2024-12-29</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>

@@ -2,7 +2,7 @@ User-agent: *
 Allow: /
 
 # Sitemap
-Sitemap: https://www.lockndrop.asimsk.online/sitemap.xml
+Sitemap: https://www.lockndrop.asimsk.site/sitemap.xml
 
 # Security and Privacy
 Disallow: /api/

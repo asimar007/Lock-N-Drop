@@ -1,16 +1,12 @@
 # 🔒 LocknDrop - Secure End-to-End Encrypted File Transfer
 
-<div  align="center">
-
 ![LocknDrop Logo](https://img.shields.io/badge/🔒-LocknDrop-blue?style=for-the-badge&labelColor=1e293b&color=3b82f6)
 
-**Military-grade AES-256 encryption • Zero permanent storage • 24-hour auto-deletion**
+**Serverless P2P File Transfer • Unlimited Speed • No File Size Limits**
 
-[![Live Demo](https://img.shields.io/badge/🌐-Live%20Demo-success?style=for-the-badge)](https://www.lockndrop.asimsk.online)
-
-[![Security](https://img.shields.io/badge/🛡️-AES--256-red?style=for-the-badge)](https://en.wikipedia.org/wiki/Advanced_Encryption_Standard)
-
-[![Privacy](https://img.shields.io/badge/🔐-End--to--End-purple?style=for-the-badge)](#security-architecture)
+[![Live Demo](https://img.shields.io/badge/🌐-Live%20Demo-success?style=for-the-badge)](https://www.lockndrop.asimsk.site)
+[![Security](https://img.shields.io/badge/🛡️-WebRTC%20Encryption-red?style=for-the-badge)](https://webrtc-security.github.io/)
+[![Privacy](https://img.shields.io/badge/🔐-Direct%20P2P-purple?style=for-the-badge)](#security-architecture)
 
 </div>
 
@@ -18,23 +14,18 @@
 
 ## 🚀 What is LocknDrop?
 
-LocknDrop is a **secure, database-based file transfer application** that implements true end-to-end encryption. Unlike traditional file sharing services, your files are encrypted on your device before transmission and never stored in plaintext on our servers.
+LocknDrop is a **secure, serverless peer-to-peer file transfer application**. Unlike traditional file sharing services, LocknDrop creates a direct connection between devices using **WebRTC**, meaning your files never touch a server. They stream directly from sender to receiver.
 
 ### ✨ Key Features
 
-- 🔐 **True End-to-End Encryption** - Files encrypted with AES-256-GCM before leaving your device
-
-- 🚫 **Zero Permanent Storage** - Files never stored in plaintext, automatic 24-hour deletion
-
-- ⚡ **Instant Transfer** - Share files with a simple 6-character code
-
-- 📱 **Cross-Platform** - Works on any device with a modern web browser
-
-- 🌙 **Dark Mode Support** - Beautiful interface with light/dark themes
-
-- 🔄 **Chunked Transfers** - Reliable transfer of large files up to 20MB
-
-- 📊 **Real-time Progress** - Live transfer progress with speed indicators
+- 🔐 **Secure WebRTC Encryption** - All data is encrypted in transit using DTLS-SRTP.
+- 🚫 **Zero Server Storage** - Files are never uploaded to any server.
+- ⚡ **Unlimited Speed** - Direct device-to-device transfer. "Firehose" pipelining saturates your bandwidth.
+- ♾️ **No File Size Limits** - Transfer gigabytes or terabytes. RAM-efficient streaming.
+- 🧬 **Binary Protocol** - Custom raw binary framing for maximum efficiency (No Base64 overhead).
+- 📱 **Cross-Platform** - Works on any device with a modern web browser.
+- 🌙 **Dark Mode Support** - Beautiful interface with light/dark themes.
+- 📊 **Real-time Progress** - Smooth 20fps progress indicators.
 
 ---
 
@@ -42,158 +33,98 @@ LocknDrop is a **secure, database-based file transfer application** that impleme
 
 ### 🌐 Try It Now
 
-Visit **[www.lockndrop.asimsk.online](https://www.lockndrop.asimsk.online)** to start transferring files securely!
+Visit **[www.lockndrop.asimsk.site](https://www.lockndrop.asimsk.site)** to start transferring files securely!
 
 ### 📤 Sending Files
 
-1. Click **"Send Files"**
-
-2. Select your files (up to 20MB each)
-
-3. Share the generated 6-character code
-
-4. Files are automatically encrypted and uploaded
+1. Click **"Send Files"**.
+2. Select your files (Unlimited size).
+3. Share the generated 6-character code or Magic Link.
+4. Files are automatically streamed P2P.
 
 ### 📥 Receiving Files
 
-1. Click **"Receive Files"**
-
-2. Enter the 6-character code
-
-3. Files are automatically downloaded and decrypted
-
-4. No registration or account required!
+1. Click **"Receive Files"** (or open the Magic Link).
+2. Enter the code.
+3. Files are automatically downloaded.
 
 ---
 
 ## 🏗️ Development Setup
 
-### Prerequisites
-
-- Node.js 18+ and npm
-
-- Supabase account (for production)
+This project uses **Vite** and **React**. It requires **Node.js 18+**.
 
 ### Installation
 
 ```bash
-
 # Clone the repository
+git clone https://github.com/asimar007/Lock-N-Drop.git
+cd Lock-N-Drop
 
-git  clone  https://github.com/asimar007/Lock-N-Drop.git
-
-cd  Lock-N-Drop
-
-# Install dependencies
-
-npm  install
+# Install dependencies (We recommend Bun or npm)
+bun install
+# or
+npm install
 
 # Start development server
-
-npm  run  dev
+bun dev
+# or
+npm run dev
 ```
 
 ### Environment Configuration
 
-Create a `.env` file:
-
-```env
-
-VITE_SUPABASE_URL=your_supabase_project_url
-
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
-
-```
-
-> **Note:** The app works in demo mode without Supabase for UI testing
+No `.env` file is required! The project uses public PeerJS signaling (or you can host your own).
 
 ---
 
 ## 🔒 Security Architecture
 
-### End-to-End Encryption Flow
+### Peer-to-Peer Flow
 
 ```mermaid
-
 graph LR
-
-A[📁 Original File] --> B[🔐 AES-256 Encrypt]
-
-B --> C[📦 Chunk & Store]
-
-C --> D[🌐 Database]
-
-D --> E[📥 Download Chunks]
-
-E --> F[🔓 Decrypt & Combine]
-
-F --> G[📁 Original File]
-
+A[💻 Sender] -- Signaling (Handshake Only) --> B[☁️ PeerJS Server]
+B -- Signaling (Handshake Only) --> C[📱 Receiver]
+A -- 🔒 Encrypted Direct Stream (WebRTC) --> C
 ```
 
 ### Technical Security Details
 
-| Component | Implementation |
-
-| -------------------------- | -------------------------------------------- |
-
-| **Encryption** | AES-256-GCM (Galois/Counter Mode) |
-
-| **Key Generation** | Web Crypto API `crypto.subtle.generateKey()` |
-
-| **Initialization Vectors** | Unique 96-bit IV per chunk |
-
-| **Chunk Size** | 64KB for optimal performance |
-
-| **Transport Security** | HTTPS/TLS 1.3 |
-
-| **Data Retention** | Maximum 24 hours, typically 2 hours |
+| Component        | Implementation                       |
+| ---------------- | ------------------------------------ |
+| **Encryption**   | DTLS-SRTP (WebRTC Standard)          |
+| **Protocol**     | Custom Binary Framing (Uint8Array)   |
+| **Signaling**    | PeerJS Cloud (Ephemeral IDs only)    |
+| **Data Channel** | SCTP over DTLS (Ordered, Reliable)   |
+| **File Access**  | Streaming (In-Memory Processing)     |
+| **Storage**      | None (Files are strictly RAM-to-RAM) |
 
 ### Privacy Guarantees
 
-- ✅ **Client-side encryption** - Keys never leave your device
-
-- ✅ **Zero-knowledge server** - Server cannot decrypt your files
-
-- ✅ **Automatic deletion** - All data purged within 24 hours
-
-- ✅ **No file storage** - Only encrypted chunks stored temporarily
+- ✅ **No Cloud Storage** - We physically cannot see your files.
+- ✅ **No File Size Limits** - Since we don't store them, you can send anything.
+- ✅ **Direct Transfer** - Data goes straight from Device A to Device B.
+- ✅ **Ephemeral Sessions** - Connection closes immediately after transfer.
 
 ---
 
 ## 🛠️ Technology Stack
 
-### Frontend
+### Frontend & Core
 
 - **React 18** - Modern UI framework with hooks
-
 - **TypeScript** - Type-safe development
-
+- **Vite** - Fast development and building
+- **PeerJS** - WebRTC wrapper for simple P2P connections
 - **Tailwind CSS** - Utility-first styling with dark mode
-
 - **Lucide React** - Beautiful, consistent icons
 
-- **Vite** - Fast development and building
+### Architecture
 
-### Backend & Database
-
-- **Supabase** - PostgreSQL database with real-time features
-
-- **Row Level Security** - Database-level access control
-
-- **Web Crypto API** - Browser-native encryption
-
-### Security & Performance
-
-- **AES-256-GCM** - Military-grade encryption
-
-- **Chunked transfers** - Reliable large file handling
-
-- **Progressive Web App** - Installable, offline-capable
-
-- **Responsive design** - Mobile-first approach
-
-- **Permanent**: IP tracking for security monitoring
+- **Zero Backend** - Static site hosting only (Vercel/Netlify)
+- **PeerJS Cloud** - Free public signaling server
+- **Binary Protocol** - Custom `ArrayBuffer` packet framing for performance
 
 ---
 
@@ -203,41 +134,17 @@ We welcome contributions! Here's how to get started:
 
 ### Development Workflow
 
-1.  **Fork** the repository
-
-2.  **Create** a feature branch: `git checkout -b feature/amazing-feature`
-
-3.  **Commit** your changes: `git commit -m 'Add amazing feature'`
-
-4.  **Push** to the branch: `git push origin feature/amazing-feature`
-
-5.  **Open** a Pull Request
-
-### Code Standards
-
-- **TypeScript** - Strict type checking enabled
-
-- **ESLint** - Code linting and formatting
-
-- **Prettier** - Consistent code style
-
-- **Conventional Commits** - Semantic commit messages
+1.  **Fork** the repository.
+2.  **Create** a feature branch.
+3.  **Commit** your changes.
+4.  **Push** to the branch.
+5.  **Open** a Pull Request.
 
 ### Testing
 
 ```bash
-
-# Run linting
-
-npm  run  lint
-
-# Type checking
-
-npx  tsc  --noEmit
-
 # Build verification
-
-npm  run  build
+npm run build
 ```
 
 ---
@@ -252,12 +159,8 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 ### Security Features
 
-- 🔐 **End-to-end encryption** with AES-256-GCM
-
-- 🚫 **Zero permanent storage** of user files
-
-- 🛡️ **Row-level security** in database
-
-- 🌐 **HTTPS enforcement** for all connections
+- 🔐 **WebRTC Encryption** (DTLS-SRTP)
+- 🚫 **Zero Server Storage**
+- 🌐 **HTTPS enforcement**
 
 ---

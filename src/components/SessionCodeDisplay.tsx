@@ -67,7 +67,7 @@ export const SessionCodeDisplay: React.FC<SessionCodeDisplayProps> = ({
       }
     } catch (error) {
       console.error("Error sharing:", error);
-      // Fallback to clipboard if share fails (e.g. user canceled)
+      // Fallback to clipboard if share fails
       await navigator.clipboard.writeText(url);
       setLinkCopied(true);
       setTimeout(() => setLinkCopied(false), 2000);

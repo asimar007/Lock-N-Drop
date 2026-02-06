@@ -24,9 +24,17 @@ export const CodeEntry: React.FC<CodeEntryProps> = ({
   });
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  // Auto-submit if initialCode is provided
+  // Auto-submit if initialCode is provided (only once)
+  const hasAutoSubmitted = useRef(false);
+
   useEffect(() => {
-    if (initialCode && initialCode.length === 6 && !isConnecting) {
+    if (
+      initialCode &&
+      initialCode.length === 6 &&
+      !isConnecting &&
+      !hasAutoSubmitted.current
+    ) {
+      hasAutoSubmitted.current = true;
       onCodeSubmit(initialCode);
     }
   }, [initialCode, isConnecting, onCodeSubmit]);

@@ -1,513 +1,412 @@
-import { supabase } from "../lib/supabase";
-import { FileEncryption, generateSessionCode } from "../utils/crypto";
+import { generateSessionCode } from "../utils/code";
+import Peer, { DataConnection } from "peerjs";
 
-export interface FileChunk {
-  id: string;
-  session_code: string;
-  file_id: string;
-  chunk_index: number;
-  chunk_data: string; // base64 encoded
-  iv: string; // base64 encoded
-  total_chunks: number;
-  created_at?: string;
+// Type definitions for internal structures
+interface ReassemblyContext {
+  total: number;
+  received: number;
+  chunks: Map<number, Uint8Array>;
+  metadata: { name: string; type: string };
 }
 
-export interface FileMetadata {
-  id: string;
-  session_code: string;
-  file_name: string;
-  file_size: number;
-  file_type: string;
-  encryption_key: string; // base64 encoded
-  total_chunks: number;
-  created_at?: string;
+interface TransferHeader {
+  type: "header";
+  fileId: string;
+  name: string;
+  fileType: string;
+  size: number;
+  totalChunks: number;
 }
+
+interface TransferChunk {
+  type: "chunk";
+  fileId: string;
+  index: number;
+}
+
+interface TransferEOF {
+  type: "eof";
+  fileId: string;
+}
+
+type TransferMessage = TransferHeader | TransferChunk | TransferEOF;
 
 export class FileTransferService {
-  private sessionCode: string = "";
+  private peer: Peer | null = null;
+  private conn: DataConnection | null = null;
+
   private onProgress?: (fileId: string, progress: number) => void;
   private onFileReceived?: (file: {
     name: string;
     data: ArrayBuffer;
     type: string;
   }) => void;
+  private onFileStarted?: (file: {
+    fileId: string;
+    name: string;
+    size: number;
+    type: string;
+  }) => void;
   private onConnectionStateChange?: (state: string) => void;
-  private downloadedFiles: Set<string> = new Set(); // Track downloaded files
-  private pollingInterval?: number;
-  private sessionPollingInterval?: number;
-  private isPolling: boolean = false;
-  private onSessionCompleted?: () => void;
+
+  // Track received chunks for reassembly
+  private receivedChunks: Map<string, ReassemblyContext> = new Map();
 
   constructor() {}
 
-  private async trackUserIP(): Promise<void> {
-    // Temporarily disabled - no-op function
-    return Promise.resolve();
-  }
+  // --- Session Management ---
 
   async createSession(): Promise<string> {
     const code = generateSessionCode();
-    this.sessionCode = code;
 
-    try {
-      if (!supabase) {
-        this.onConnectionStateChange?.("connected");
-        return code;
+    // Prefix to avoid collisions on public PeerJS server
+    const peerId = `LND-${code}`;
+
+    return new Promise((resolve, reject) => {
+      try {
+        this.peer = new Peer(peerId, {
+          debug: 1,
+        });
+
+        this.peer.on("open", (id) => {
+          console.log("My Peer ID is:", id);
+          this.onConnectionStateChange?.("waiting");
+          resolve(code);
+        });
+
+        this.peer.on("connection", (connection) => {
+          console.log("Incoming connection...");
+          this.handleConnection(connection);
+        });
+
+        this.peer.on("error", (err) => {
+          console.error("Peer error:", err);
+          // If ID is taken (rare with random 6 chars but possible), we might need to retry?
+          // For now, simple error.
+          this.onConnectionStateChange?.("failed");
+          reject(err);
+        });
+
+        this.peer.on("disconnected", () => {
+          console.log("Peer disconnected from server");
+          // Retry?
+        });
+      } catch (error) {
+        reject(error);
       }
-
-      // Track user IP (no-op for now)
-      await this.trackUserIP();
-
-      // Create session in database
-      const { error } = await supabase
-        .from("transfer_sessions")
-        .insert({
-          code,
-          creator_id: crypto.randomUUID(),
-          status: "waiting",
-          expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
-        })
-        .select()
-        .single();
-
-      if (error) {
-        throw new Error(`Failed to create session: ${error.message}`);
-      }
-
-      this.onConnectionStateChange?.("connected");
-      return code;
-    } catch (error) {
-      this.onConnectionStateChange?.("failed");
-      throw error;
-    }
+    });
   }
 
   async joinSession(code: string): Promise<boolean> {
-    this.sessionCode = code;
-    this.downloadedFiles.clear(); // Reset downloaded files tracking
+    const targetPeerId = `LND-${code}`;
 
-    try {
-      if (!supabase) {
-        this.onConnectionStateChange?.("connected");
-        return true;
-      }
+    return new Promise((resolve) => {
+      try {
+        // Receiver gets a random ID
+        this.peer = new Peer();
 
-      // Track user IP (no-op for now)
-      await this.trackUserIP();
+        this.peer.on("open", () => {
+          this.onConnectionStateChange?.("connecting");
 
-      // Check if session exists
-      const { data: session, error } = await supabase
-        .from("transfer_sessions")
-        .select("*")
-        .eq("code", code)
-        .eq("status", "waiting")
-        .gt("expires_at", new Date().toISOString())
-        .single();
+          if (!this.peer) return;
 
-      if (error || !session) {
+          const connection = this.peer.connect(targetPeerId, {
+            reliable: true,
+          });
+
+          this.handleConnection(connection);
+          resolve(true);
+        });
+
+        this.peer.on("error", (err) => {
+          console.error("Join Peer error:", err);
+          this.onConnectionStateChange?.("failed");
+          resolve(false);
+        });
+      } catch (error) {
+        console.error("Join session failed:", error);
         this.onConnectionStateChange?.("failed");
-        return false;
+        resolve(false);
       }
-
-      // Update session status
-      const { error: updateError } = await supabase
-        .from("transfer_sessions")
-        .update({ status: "connected" })
-        .eq("code", code);
-
-      if (updateError) {
-        this.onConnectionStateChange?.("failed");
-        return false;
-      }
-
-      this.onConnectionStateChange?.("connected");
-
-      // Start polling for files
-      this.startFilePolling();
-
-      return true;
-    } catch {
-      this.onConnectionStateChange?.("failed");
-      return false;
-    }
+    });
   }
+
+  // --- Connection Handling ---
+
+  private handleConnection(connection: DataConnection) {
+    this.conn = connection;
+
+    this.conn.on("open", () => {
+      console.log("DataConnection Open!");
+      this.onConnectionStateChange?.("connected");
+    });
+
+    this.conn.on("data", (data) => {
+      // PeerJS determines type automatically. We send JSON strings usually.
+      // But if we sent binary, it would receive ArrayBuffer.
+      // Our previous logic used JSON strings for everything including base64 chunks.
+      // Let's stick to that for compatibility with existing logic structure.
+      this.handleIncomingData(data as string);
+    });
+
+    this.conn.on("close", () => {
+      console.log("Connection closed");
+      this.onConnectionStateChange?.("disconnected");
+      this.conn = null;
+    });
+
+    this.conn.on("error", (err) => {
+      console.error("Connection error:", err);
+      this.onConnectionStateChange?.("failed");
+    });
+  }
+
+  // --- Data Transfer ---
 
   async sendFile(
     file: File,
-    onProgress?: (progress: number) => void
+    onProgress?: (progress: number) => void,
   ): Promise<void> {
-    try {
-      if (!supabase) {
-        this.simulateFileTransfer(file, onProgress);
-        return;
+    if (!this.conn || !this.conn.open) {
+      throw new Error("Connection not open");
+    }
+
+    this.onConnectionStateChange?.("transferring");
+
+    const fileId = crypto.randomUUID();
+
+    // 1. Send Start Header
+    const header: TransferHeader = {
+      type: "header",
+      fileId,
+      name: file.name,
+      fileType: file.type,
+      size: file.size,
+      totalChunks: Math.ceil(file.size / (128 * 1024)), // 128KB chunks
+    };
+    this.conn.send(JSON.stringify(header));
+
+    // 2. Chunk & Send - "The Firehose" Strategy
+    const chunkSize = 128 * 1024; // 128KB Chunks
+    const totalChunks = Math.ceil(file.size / chunkSize);
+
+    // High Water Mark: 1MB
+    const HIGH_WATER_MARK = 1024 * 1024;
+    let lastProgressUpdate = 0;
+
+    for (let i = 0; i < totalChunks; i++) {
+      // Stop if connection dies
+      if (!this.conn.open) break;
+
+      const start = i * chunkSize;
+      const end = Math.min(start + chunkSize, file.size);
+
+      // Read file chunk
+      const chunkBuffer = await file.slice(start, end).arrayBuffer();
+
+      // Create Custom Binary Packet
+      // Structure: [Header Length (4 bytes UI32)] [JSON Header Bytes] [Raw Chunk Bytes]
+      const chunkMetadata = JSON.stringify({
+        type: "chunk",
+        fileId,
+        index: i,
+      });
+
+      const metadataBuffer = new TextEncoder().encode(chunkMetadata);
+      const metadataLength = metadataBuffer.byteLength;
+
+      // Alloc packet: 4 bytes len + metadata + chunk
+      const packet = new Uint8Array(
+        4 + metadataLength + chunkBuffer.byteLength,
+      );
+      const view = new DataView(packet.buffer);
+
+      // Write Header Length (Little Endian)
+      view.setUint32(0, metadataLength, true);
+
+      // Write Metadata
+      packet.set(metadataBuffer, 4);
+
+      // Write Chunk Data
+      packet.set(new Uint8Array(chunkBuffer), 4 + metadataLength);
+
+      try {
+        this.conn.send(packet);
+      } catch (e) {
+        console.error("Send failed at chunk", i, e);
+        throw e;
       }
 
-      this.onConnectionStateChange?.("transferring");
-
-      // Generate encryption key
-      const encryptionKey = await FileEncryption.generateKey();
-      const exportedKey = await FileEncryption.exportKey(encryptionKey);
-
-      const fileId = crypto.randomUUID();
-      const chunkSize = 64 * 1024; // 64KB chunks
-      const totalChunks = Math.ceil(file.size / chunkSize);
-
-      // Store file metadata - ALWAYS store for ALL file types
-      const metadata: Omit<FileMetadata, "created_at"> = {
-        id: fileId,
-        session_code: this.sessionCode,
-        file_name: file.name,
-        file_size: file.size,
-        file_type: file.type || "application/octet-stream", // Ensure file type is always set
-        encryption_key: btoa(
-          String.fromCharCode(...new Uint8Array(exportedKey))
-        ),
-        total_chunks: totalChunks,
-      };
-
-      const { data: metadataResult, error: metadataError } = await supabase
-        .from("file_metadata")
-        .insert(metadata)
-        .select()
-        .single();
-
-      if (metadataError) {
-        throw new Error(
-          `Failed to store file metadata: ${metadataError.message}`
-        );
-      }
-
-      // Use metadataResult to avoid unused variable warning
-      void metadataResult;
-
-      // Upload file chunks - ALWAYS upload for ALL file types
-      for (let i = 0; i < totalChunks; i++) {
-        const start = i * chunkSize;
-        const end = Math.min(start + chunkSize, file.size);
-        const chunk = file.slice(start, end);
-        const chunkData = await chunk.arrayBuffer();
-
-        // Encrypt chunk
-        const { encryptedData, iv } = await FileEncryption.encryptFile(
-          chunkData,
-          encryptionKey
-        );
-
-        const chunkRecord: Omit<FileChunk, "created_at"> = {
-          id: crypto.randomUUID(),
-          session_code: this.sessionCode,
-          file_id: fileId,
-          chunk_index: i,
-          chunk_data: btoa(
-            String.fromCharCode(...new Uint8Array(encryptedData))
-          ),
-          iv: btoa(String.fromCharCode(...new Uint8Array(iv))),
-          total_chunks: totalChunks,
-        };
-
-        const { data: chunkResult, error: chunkError } = await supabase
-          .from("file_chunks")
-          .insert(chunkRecord)
-          .select()
-          .single();
-
-        if (chunkError) {
-          throw new Error(`Failed to upload chunk ${i}: ${chunkError.message}`);
-        }
-
-        // Use chunkResult to avoid unused variable warning
-        void chunkResult;
-
-        // Report progress
+      // Progress Throttling (Max 20fps = every 50ms)
+      const now = Date.now();
+      if (now - lastProgressUpdate > 50 || i === totalChunks - 1) {
         const progress = (i + 1) / totalChunks;
         onProgress?.(progress);
         this.onProgress?.(fileId, progress);
+        lastProgressUpdate = now;
       }
 
+      // Backpressure - "The Firehose"
+      const bufferedAmount = this.conn.dataChannel?.bufferedAmount || 0;
+
+      if (bufferedAmount > HIGH_WATER_MARK) {
+        while ((this.conn.dataChannel?.bufferedAmount || 0) > 0) {
+          await new Promise((r) => setTimeout(r, 10));
+        }
+      }
+      if (i % 50 === 0) await new Promise((r) => setTimeout(r, 0));
+    }
+
+    // 3. Send End
+    if (this.conn.open) {
+      const eof: TransferEOF = { type: "eof", fileId };
+      this.conn.send(JSON.stringify(eof));
       this.onConnectionStateChange?.("completed");
-    } catch (error) {
-      this.onConnectionStateChange?.("failed");
-      throw error;
     }
   }
 
-  private async simulateFileTransfer(
-    file: File,
-    onProgress?: (progress: number) => void
-  ): Promise<void> {
-    // Simulate file transfer progress
-    for (let i = 0; i <= 100; i += 10) {
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      const progress = i / 100;
-      onProgress?.(progress);
-      this.onProgress?.(file.name, progress);
+  private async handleIncomingData(data: unknown) {
+    try {
+      // 0. Convert to ArrayBuffer if necessary
+      let buffer: ArrayBuffer | null = null;
+
+      if (data instanceof ArrayBuffer) {
+        buffer = data;
+      } else if (data instanceof Uint8Array) {
+        buffer = data.buffer as ArrayBuffer;
+      } else if (data instanceof Blob) {
+        buffer = (await data.arrayBuffer()) as ArrayBuffer;
+      }
+
+      // 1. Handle Binary Chunk (ArrayBuffer)
+      if (buffer) {
+        const view = new DataView(buffer);
+
+        // Read Metadata Length
+        const metadataLength = view.getUint32(0, true);
+
+        // Decode Metadata
+        const metadataBytes = new Uint8Array(buffer, 4, metadataLength);
+        const metadataString = new TextDecoder().decode(metadataBytes);
+        const msg = JSON.parse(metadataString);
+
+        if (msg.type === "chunk") {
+          const fileContext = this.receivedChunks.get(msg.fileId);
+          if (!fileContext) return;
+
+          // Extract Raw Chunk
+          const chunkData = new Uint8Array(buffer, 4 + metadataLength);
+
+          // Store the slice
+          fileContext.chunks.set(msg.index, chunkData);
+          fileContext.received++;
+
+          const progress = fileContext.received / fileContext.total;
+          this.onProgress?.(msg.fileId, progress);
+        }
+        return;
+      }
+
+      // 2. Handle Text Control Messages (Header/EOF)
+      if (typeof data === "string") {
+        const msg = JSON.parse(data) as TransferMessage;
+
+        if (msg.type === "header") {
+          // Start new file reception
+          this.receivedChunks.set(msg.fileId, {
+            total: msg.totalChunks,
+            received: 0,
+            chunks: new Map(),
+            metadata: {
+              name: msg.name,
+              type: msg.fileType,
+            },
+          });
+
+          this.onFileStarted?.({
+            fileId: msg.fileId,
+            name: msg.name,
+            size: msg.size,
+            type: msg.fileType,
+          });
+
+          this.onConnectionStateChange?.("transferring");
+        } else if (msg.type === "eof") {
+          const fileContext = this.receivedChunks.get(msg.fileId);
+          if (!fileContext) return;
+
+          // Reassemble
+          this.reassembleFile(msg.fileId, fileContext);
+        }
+      }
+    } catch (e) {
+      console.error("Error handling data", e);
+    }
+  }
+
+  private async reassembleFile(fileId: string, context: ReassemblyContext) {
+    const chunks: ArrayBuffer[] = [];
+
+    for (let i = 0; i < context.total; i++) {
+      const chunk = context.chunks.get(i);
+      if (chunk) {
+        chunks.push(chunk.buffer as ArrayBuffer);
+      }
     }
 
+    const blob = new Blob(chunks, { type: context.metadata.type });
+
+    // Trigger download
+    this.onFileReceived?.({
+      name: context.metadata.name,
+      data: (await blob.arrayBuffer()) as ArrayBuffer,
+      type: context.metadata.type,
+    });
+
+    this.receivedChunks.delete(fileId);
     this.onConnectionStateChange?.("completed");
   }
 
-  private async startFilePolling(): Promise<void> {
-    if (!supabase || this.isPolling) return;
+  // --- Handlers ---
 
-    this.isPolling = true;
-
-    const pollForFiles = async () => {
-      if (!supabase) {
-        this.stopPolling();
-        return;
-      }
-      try {
-        // Get file metadata for this session that we haven't downloaded yet
-        const { data: files, error } = await supabase
-          .from("file_metadata")
-          .select("*")
-          .eq("session_code", this.sessionCode);
-
-        if (error) {
-          return;
-        }
-
-        if (!files || files.length === 0) {
-          return;
-        }
-
-        // Process only new files that haven't been downloaded
-        for (const fileMetadata of files) {
-          if (!this.downloadedFiles.has(fileMetadata.id)) {
-            await this.downloadFile(fileMetadata);
-          }
-        }
-      } catch {
-        // Silently handle polling errors
-      }
-    };
-
-    // Initial poll
-    await pollForFiles();
-
-    // Poll every 2 seconds
-    this.pollingInterval = window.setInterval(pollForFiles, 2000);
-
-    // Stop polling after 10 minutes
-    setTimeout(() => {
-      this.stopPolling();
-    }, 10 * 60 * 1000);
-  }
-
-  private stopPolling(): void {
-    if (this.pollingInterval) {
-      clearInterval(this.pollingInterval);
-      this.pollingInterval = undefined;
-    }
-    this.isPolling = false;
-  }
-
-  private async downloadFile(metadata: FileMetadata): Promise<void> {
-    if (!supabase) return;
-
-    try {
-      // Mark this file as being processed to prevent duplicate downloads
-      if (this.downloadedFiles.has(metadata.id)) {
-        return;
-      }
-
-      this.downloadedFiles.add(metadata.id);
-
-      // Get all chunks for this file
-      const { data: chunks, error } = await supabase
-        .from("file_chunks")
-        .select("*")
-        .eq("file_id", metadata.id)
-        .order("chunk_index");
-
-      if (error) {
-        this.downloadedFiles.delete(metadata.id); // Remove from downloaded set on error
-        return;
-      }
-
-      if (!chunks || chunks.length !== metadata.total_chunks) {
-        this.downloadedFiles.delete(metadata.id); // Remove from downloaded set to retry later
-        return;
-      }
-
-      this.onConnectionStateChange?.("transferring");
-
-      // Import encryption key
-      const keyData = Uint8Array.from(atob(metadata.encryption_key), (c) =>
-        c.charCodeAt(0)
-      );
-      const encryptionKey = await FileEncryption.importKey(keyData.buffer);
-
-      // Decrypt and combine chunks
-      const decryptedChunks: ArrayBuffer[] = [];
-
-      for (const chunk of chunks) {
-        const encryptedData = Uint8Array.from(atob(chunk.chunk_data), (c) =>
-          c.charCodeAt(0)
-        );
-        const iv = Uint8Array.from(atob(chunk.iv), (c) => c.charCodeAt(0));
-
-        const decryptedChunk = await FileEncryption.decryptFile(
-          encryptedData.buffer,
-          encryptionKey,
-          iv
-        );
-
-        decryptedChunks.push(decryptedChunk);
-
-        // Report progress
-        const progress = (chunk.chunk_index + 1) / metadata.total_chunks;
-        this.onProgress?.(metadata.id, progress);
-      }
-
-      // Combine all chunks
-      const totalSize = decryptedChunks.reduce(
-        (sum, chunk) => sum + chunk.byteLength,
-        0
-      );
-      const combinedData = new ArrayBuffer(totalSize);
-      const view = new Uint8Array(combinedData);
-
-      let offset = 0;
-      for (const chunk of decryptedChunks) {
-        view.set(new Uint8Array(chunk), offset);
-        offset += chunk.byteLength;
-      }
-
-      // Trigger file received callback
-      this.onFileReceived?.({
-        name: metadata.file_name,
-        data: combinedData,
-        type: metadata.file_type,
-      });
-
-      // Clean up - delete chunks and metadata
-      await this.cleanupFile(metadata.id);
-
-      // Mark session as completed
-      await this.completeSession();
-
-      this.onConnectionStateChange?.("completed");
-    } catch {
-      this.downloadedFiles.delete(metadata.id); // Remove from downloaded set on error
-      this.onConnectionStateChange?.("failed");
-    }
-  }
-
-  private async cleanupFile(fileId: string): Promise<void> {
-    if (!supabase) return;
-
-    try {
-      // Delete chunks
-      const { error: chunksError } = await supabase
-        .from("file_chunks")
-        .delete()
-        .eq("file_id", fileId);
-
-      if (chunksError) {
-        // Silently handle chunk deletion error
-      }
-
-      // Delete metadata
-      const { error: metadataError } = await supabase
-        .from("file_metadata")
-        .delete()
-        .eq("id", fileId);
-
-      if (metadataError) {
-        // Silently handle metadata deletion error
-      }
-    } catch {
-      // Silently handle cleanup errors
-    }
-  }
-
-  setProgressHandler(
-    handler: (fileId: string, progress: number) => void
-  ): void {
+  setProgressHandler(handler: (fileId: string, progress: number) => void) {
     this.onProgress = handler;
   }
 
   setFileReceivedHandler(
-    handler: (file: { name: string; data: ArrayBuffer; type: string }) => void
-  ): void {
+    handler: (file: { name: string; data: ArrayBuffer; type: string }) => void,
+  ) {
     this.onFileReceived = handler;
   }
 
-  setConnectionStateHandler(handler: (state: string) => void): void {
+  setConnectionStateHandler(handler: (state: string) => void) {
     this.onConnectionStateChange = handler;
   }
 
-  async completeSession(): Promise<void> {
-    if (!this.sessionCode) return;
+  setFileStartedHandler(
+    handler: (file: {
+      fileId: string;
+      name: string;
+      size: number;
+      type: string;
+    }) => void,
+  ) {
+    this.onFileStarted = handler;
+  }
 
-    try {
-      if (supabase) {
-        await supabase
-          .from("transfer_sessions")
-          .update({ status: "completed" })
-          .eq("code", this.sessionCode);
-      }
-    } catch {
-      // Silently handle error
-    } finally {
-      this.onSessionCompleted?.();
+  // Stub methods to satisfy calls from hooks (if any, pending hooks update)
+  listenForSessionCompletion() {}
+  setSessionCompletionHandler() {}
+
+  async close() {
+    if (this.conn) {
+      this.conn.close();
+      this.conn = null;
     }
-  }
-
-  listenForSessionCompletion(callback: () => void): void {
-    this.onSessionCompleted = callback;
-    if (!supabase || !this.sessionCode) return;
-
-    // Poll for session completion
-    this.sessionPollingInterval = window.setInterval(async () => {
-      if (!supabase) return;
-      try {
-        const { data, error } = await supabase
-          .from("transfer_sessions")
-          .select("status")
-          .eq("code", this.sessionCode)
-          .single();
-
-        if (!error && data?.status === "completed") {
-          this.onSessionCompleted?.();
-          this.stopSessionPolling();
-        }
-      } catch {
-        // Silently handle error
-      }
-    }, 2000);
-  }
-
-  private stopSessionPolling(): void {
-    if (this.sessionPollingInterval) {
-      clearInterval(this.sessionPollingInterval);
-      this.sessionPollingInterval = undefined;
+    if (this.peer) {
+      this.peer.destroy();
+      this.peer = null;
     }
-  }
-
-  setSessionCompletionHandler(handler: () => void): void {
-    this.onSessionCompleted = handler;
-  }
-
-  async close(): Promise<void> {
-    // Stop polling
-    this.stopPolling();
-    this.stopSessionPolling();
-
-    // Clear downloaded files tracking
-    this.downloadedFiles.clear();
-
-    // Clean up session if needed
-    if (supabase && this.sessionCode) {
-      try {
-        await supabase
-          .from("transfer_sessions")
-          .update({ status: "closed" })
-          .eq("code", this.sessionCode);
-      } catch {
-        // Silently handle session close error
-      }
-    }
+    this.receivedChunks.clear();
   }
 }

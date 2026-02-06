@@ -1,13 +1,12 @@
 Contact: asimsk777@gmail.com
 Expires: 2025-12-31T23:59:59.000Z
-Encryption: https://keys.openpgp.org/search?q=security@lockndrop.asimsk.online
+Encryption: https://keys.openpgp.org/search?q=security@lockndrop.asimsk.site
 Preferred-Languages: en
-Canonical: https://www.lockndrop.asimsk.online/.well-known/security.txt
-Policy: https://www.lockndrop.asimsk.online
-Acknowledgments: https://www.lockndrop.asimsk.online
+Canonical: https://www.lockndrop.asimsk.site/.well-known/security.txt
+Policy: https://www.lockndrop.asimsk.site
+Acknowledgments: https://www.lockndrop.asimsk.site
 # Security Features
-# - End-to-end AES-256-GCM encryption
-# - Zero permanent file storage
-# - Automatic 24-hour data deletion
-# - Row-level security policies
+# - Secure WebRTC Encryption (DTLS-SRTP)
+# - Zero Server Storage (Direct P2P)
+# - No Data Retention (Files never touch our servers)
 # - HTTPS enforcement

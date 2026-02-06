@@ -1,7 +1,7 @@
 {
   "name": "LocknDrop - Secure File Transfer",
   "short_name": "LocknDrop",
-  "description": "Secure end-to-end encrypted file transfer with AES-256 encryption",
+  "description": "Serverless Peer-to-Peer file transfer. Unlimited speed, direct device-to-device.",
   "icons": [
     {
       "src": "/favicon.svg",

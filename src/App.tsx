@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Lock,
   ArrowLeft,
@@ -13,7 +13,6 @@ import { FileSelector } from "./components/FileSelector";
 import { SessionCodeDisplay } from "./components/SessionCodeDisplay";
 import { CodeEntry } from "./components/CodeEntry";
 import { TransferProgress } from "./components/TransferProgress";
-import { SetupInstructions } from "./components/SetupInstructions";
 import { ErrorDisplay } from "./components/ErrorDisplay";
 import { Toast } from "./components/Toast";
 import { PrivacyPolicy, TermsOfService } from "./components/LegalModals";
@@ -128,11 +127,6 @@ function App() {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [session]);
 
-  // Check if Supabase is configured
-  const isSupabaseConfigured = !!(
-    import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY
-  );
-
   const handleSendFiles = () => {
     if (selectedFiles.length === 0) return;
 
@@ -140,11 +134,28 @@ function App() {
     setMode("send");
   };
 
-  const handleStartTransfer = () => {
+  const handleStartTransfer = useCallback(() => {
     if (session && selectedFiles.length > 0) {
       startTransfer(selectedFiles);
     }
-  };
+  }, [session, selectedFiles, startTransfer]);
+
+  // Auto-start transfer when connected
+  useEffect(() => {
+    if (
+      session &&
+      session.role === "sender" &&
+      session.status === "waiting" &&
+      connectionStatus === "connected" &&
+      selectedFiles.length > 0
+    ) {
+      // Small delay to ensure connection is stable and UI updates
+      const timer = setTimeout(() => {
+        handleStartTransfer();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [session, connectionStatus, selectedFiles, handleStartTransfer]);
 
   const handleReceiveMode = () => {
     setMode("receive");
@@ -188,10 +199,17 @@ function App() {
     }
   }, [error, dismissError]);
 
-  // Set up transfer complete handler to reset to home page
+  // Set up transfer complete handler to reset to home page with delay
   useEffect(() => {
     setOnTransferComplete(() => {
-      handleReset();
+      // Small delay to show success state before redirecting
+      setTimeout(() => {
+        handleReset();
+        // Show a toast to confirm success
+        setToastMessage("Transfer completed successfully!");
+        setToastType("success");
+        setShowToast(true);
+      }, 3000);
     });
   }, [setOnTransferComplete, handleReset]);
 
@@ -236,26 +254,19 @@ function App() {
               </span>
               <span
                 className="flex items-center gap-1.5 hover:opacity-100 transition-opacity cursor-help"
-                title="Files never stored on server"
+                title="Files travel directly between devices"
               >
-                <Database className="h-3.5 w-3.5" /> Zero Persistence
+                <Database className="h-3.5 w-3.5" /> No Cloud Storage
               </span>
               <span
                 className="flex items-center gap-1.5 hover:opacity-100 transition-opacity cursor-help"
                 title="Direct P2P transfer"
               >
-                <Zap className="h-3.5 w-3.5" /> P2P Blazing Fast
+                <Zap className="h-3.5 w-3.5" /> Unlimited Speed (P2P)
               </span>
             </div>
 
             <div className="flex items-center gap-3">
-              {/* Demo Badge */}
-              {!isSupabaseConfigured && (
-                <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded border border-amber-500/30 text-amber-500 bg-amber-500/10">
-                  Demo Mode
-                </span>
-              )}
-
               <a
                 href="https://github.com/asimar007/Lock-N-Drop"
                 target="_blank"
@@ -301,12 +312,6 @@ function App() {
               </div>
             )}
 
-            {!isSupabaseConfigured && mode === "select" && (
-              <div className="mb-8">
-                <SetupInstructions />
-              </div>
-            )}
-
             {mode === "select" && (
               <div className="grid gap-6 animate-slide-up">
                 {/* Send Card */}
@@ -327,7 +332,6 @@ function App() {
                     <FileSelector
                       onFilesSelected={setSelectedFiles}
                       selectedFiles={selectedFiles}
-                      maxFileSize={20 * 1024 * 1024} // 20MB limit
                     />
 
                     {selectedFiles.length > 0 && (
@@ -400,13 +404,13 @@ function App() {
 
                   {connectionStatus === "connected" &&
                     session.status === "waiting" && (
-                      <div className="mt-8">
-                        <button
-                          onClick={handleStartTransfer}
-                          className="w-full py-4 rounded-lg font-bold tracking-wide transition-all bg-emerald-500 text-black hover:bg-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.3)]"
-                        >
-                          START ENCRYPTED TRANSFER
-                        </button>
+                      <div className="mt-8 text-center animate-pulse">
+                        <p className="text-emerald-400 font-medium mb-2">
+                          Peer Connected!
+                        </p>
+                        <p className="text-sm text-gray-400">
+                          Starting transfer automatically...
+                        </p>
                       </div>
                     )}
                 </div>
@@ -481,8 +485,8 @@ function App() {
 
           <footer className="mt-auto pt-12 text-center text-xs text-gray-600">
             <p className="flex items-center justify-center gap-2 mb-4">
-              <Lock className="h-3 w-3" /> E2E Encrypted • Transient • Open
-              Source
+              <Lock className="h-3 w-3" /> End-to-End Encrypted • Serverless P2P
+              • Open Source
             </p>
             <div className="flex items-center justify-center gap-6 text-gray-500">
               <button

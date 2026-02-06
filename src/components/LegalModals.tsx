@@ -58,19 +58,17 @@ export const PrivacyPolicy: React.FC<{
     </p>
 
     <h3 className="text-white font-semibold text-base mt-4">
-      2. Zero Tolerance Data Retention
+      2. Direct Peer-to-Peer Transfer (No Storage)
     </h3>
     <p>
-      We are a privacy-first service. We do not store your files permanently.
-      All files are end-to-end encrypted on your device before they reach our
-      servers. We do not have access to your encryption keys, meaning we cannot
-      read your files.
+      We operate on a strict "Zero Knowledge" and "Zero Storage" basis. File
+      transfers happen directly between your device and the recipient's device
+      using WebRTC technology.
     </p>
     <ul className="list-disc pl-5 space-y-1 mt-2">
-      <li>Files are automatically deleted after 24 hours (or sooner).</li>
-      <li>
-        Encryption keys are generated on your client and never stored by us.
-      </li>
+      <li>Files are NEVER uploaded to or stored on our servers.</li>
+      <li>We do not have access to your files or encryption keys.</li>
+      <li>Once the browser tab is closed, all session data is vanished.</li>
     </ul>
 
     <h3 className="text-white font-semibold text-base mt-4">
