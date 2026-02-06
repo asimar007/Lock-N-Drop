@@ -247,19 +247,19 @@ function App() {
 
             <div className="hidden md:flex items-center gap-6 text-sm font-medium opacity-60">
               <span
-                className="flex items-center gap-1.5 hover:opacity-100 transition-opacity cursor-help"
+                className="flex items-center gap-1.5 hover:opacity-100 transition-opacity"
                 title="AES-256 GCM encryption in browser"
               >
                 <Shield className="h-3.5 w-3.5" /> End-to-End Encrypted
               </span>
               <span
-                className="flex items-center gap-1.5 hover:opacity-100 transition-opacity cursor-help"
+                className="flex items-center gap-1.5 hover:opacity-100 transition-opacity"
                 title="Files travel directly between devices"
               >
                 <Database className="h-3.5 w-3.5" /> No Cloud Storage
               </span>
               <span
-                className="flex items-center gap-1.5 hover:opacity-100 transition-opacity cursor-help"
+                className="flex items-center gap-1.5 hover:opacity-100 transition-opacity"
                 title="Direct P2P transfer"
               >
                 <Zap className="h-3.5 w-3.5" /> Unlimited Speed (P2P)

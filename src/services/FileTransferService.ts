@@ -29,7 +29,15 @@ interface TransferEOF {
   fileId: string;
 }
 
-type TransferMessage = TransferHeader | TransferChunk | TransferEOF;
+interface TransferSessionComplete {
+  type: "session-complete";
+}
+
+type TransferMessage =
+  | TransferHeader
+  | TransferChunk
+  | TransferEOF
+  | TransferSessionComplete;
 
 export class FileTransferService {
   private peer: Peer | null = null;
@@ -47,6 +55,7 @@ export class FileTransferService {
     size: number;
     type: string;
   }) => void;
+  private onSessionComplete?: () => void;
   private onConnectionStateChange?: (state: string) => void;
 
   // Track received chunks for reassembly
@@ -265,6 +274,13 @@ export class FileTransferService {
     }
   }
 
+  async sendSessionComplete() {
+    if (this.conn && this.conn.open) {
+      const msg: TransferSessionComplete = { type: "session-complete" };
+      this.conn.send(JSON.stringify(msg));
+    }
+  }
+
   private async handleIncomingData(data: unknown) {
     try {
       // 0. Convert to ArrayBuffer if necessary
@@ -337,6 +353,8 @@ export class FileTransferService {
 
           // Reassemble
           this.reassembleFile(msg.fileId, fileContext);
+        } else if (msg.type === "session-complete") {
+          this.onSessionComplete?.();
         }
       }
     } catch (e) {
@@ -394,6 +412,10 @@ export class FileTransferService {
     }) => void,
   ) {
     this.onFileStarted = handler;
+  }
+
+  setSessionCompleteHandler(handler: () => void) {
+    this.onSessionComplete = handler;
   }
 
   // Stub methods to satisfy calls from hooks (if any, pending hooks update)

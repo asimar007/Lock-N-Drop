@@ -173,11 +173,14 @@ export const useFileTransfer = () => {
 
         setSession((prev) => (prev ? { ...prev, status: "completed" } : prev));
 
+        // 3. Send "Session Complete" signal
+        await fileTransferService.current.sendSessionComplete();
+
+        setSession((prev) => (prev ? { ...prev, status: "completed" } : prev));
+
         // Trigger completion for sender
         if (onTransferCompleteRef.current) {
-          setTimeout(() => {
-            onTransferCompleteRef.current?.();
-          }, 1000);
+          onTransferCompleteRef.current?.();
         }
       } catch (error) {
         console.error("Transfer failed:", error);
@@ -250,11 +253,17 @@ export const useFileTransfer = () => {
               status: "completed",
             };
           });
+        });
+
+        // Handle "Session Complete" signal from Sender
+        fileTransferService.current.setSessionCompleteHandler(() => {
+          console.log("Session complete signal received");
+          setSession((prev) =>
+            prev ? { ...prev, status: "completed" } : prev,
+          );
 
           if (onTransferCompleteRef.current) {
-            setTimeout(() => {
-              onTransferCompleteRef.current?.();
-            }, 1000);
+            onTransferCompleteRef.current?.();
           }
         });
 
