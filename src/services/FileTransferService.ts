@@ -345,12 +345,14 @@ export class FileTransferService {
   }
 
   private async reassembleFile(fileId: string, context: ReassemblyContext) {
-    const chunks: ArrayBuffer[] = [];
+    const chunks: BlobPart[] = [];
 
     for (let i = 0; i < context.total; i++) {
       const chunk = context.chunks.get(i);
       if (chunk) {
-        chunks.push(chunk.buffer as ArrayBuffer);
+        // Pushing the Uint8Array view directly ensures we only use the data part,
+        // ignoring the packet header bytes in the underlying buffer.
+        chunks.push(chunk as unknown as BlobPart);
       }
     }
 
