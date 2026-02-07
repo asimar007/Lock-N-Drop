@@ -255,14 +255,26 @@ export class FileTransferService {
         lastProgressUpdate = now;
       }
 
-      // Backpressure - "The Firehose"
+      // Backpressure - "The Firehose" Strategy with Low Water Mark
       const bufferedAmount = this.conn.dataChannel?.bufferedAmount || 0;
 
       if (bufferedAmount > HIGH_WATER_MARK) {
-        while ((this.conn.dataChannel?.bufferedAmount || 0) > 0) {
+        // Wait until buffer drains below LOW_WATER_MARK (e.g., 256KB)
+        // rather than 0. This keeps the pipe full and prevents "stop-and-go" stalls.
+        const LOW_WATER_MARK = 256 * 1024;
+        let waitTime = 0;
+
+        while ((this.conn.dataChannel?.bufferedAmount || 0) > LOW_WATER_MARK) {
           await new Promise((r) => setTimeout(r, 10));
+          waitTime += 10;
+
+          // Safeguard: If buffer doesn't drain for 30s, assume connection is dead
+          if (waitTime > 30000) {
+            throw new Error("Connection timeout: Buffer failed to drain");
+          }
         }
       }
+      // Small yield to event loop to keep UI responsive
       if (i % 50 === 0) await new Promise((r) => setTimeout(r, 0));
     }
 
