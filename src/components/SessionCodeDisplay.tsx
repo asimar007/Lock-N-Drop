@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Copy, Clock, Shield } from "lucide-react";
+import { QRCodeDisplay } from "./QRCodeDisplay";
 
 interface SessionCodeDisplayProps {
   code: string;
@@ -74,6 +75,9 @@ export const SessionCodeDisplay: React.FC<SessionCodeDisplayProps> = ({
     }
   };
 
+  // const [showQr, setShowQr] = useState(true); // Removed as QR is always visible
+  const sessionUrl = `${window.location.origin}/?code=${code}`;
+
   const isExpiringSoon = timeLeft < 60000; // Less than 1 minute
 
   return (
@@ -97,12 +101,12 @@ export const SessionCodeDisplay: React.FC<SessionCodeDisplayProps> = ({
 
           {/* Code Display - Responsive */}
           <div className="relative">
-            <div className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-gray-900 dark:to-black border-2 border-slate-200 dark:border-white/10 rounded-2xl p-8 font-mono text-4xl font-bold text-slate-900 dark:text-white tracking-wider shadow-inner">
-              <div className="grid grid-cols-4 gap-4 max-w-xs mx-auto mb-6">
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-6 font-mono text-4xl font-bold text-white tracking-wider shadow-inner backdrop-blur-md">
+              <div className="grid grid-cols-4 gap-3 max-w-[200px] mx-auto">
                 {code.split("").map((char, index) => (
                   <div
                     key={index}
-                    className="aspect-square flex items-center justify-center text-3xl font-mono font-bold bg-white/5 border-2 border-white/20 rounded-xl"
+                    className="aspect-square flex items-center justify-center text-2xl sm:text-3xl font-mono font-bold bg-black/20 border border-white/10 rounded-lg text-white"
                   >
                     {char}
                   </div>
@@ -111,29 +115,34 @@ export const SessionCodeDisplay: React.FC<SessionCodeDisplayProps> = ({
             </div>
           </div>
 
+          {/* QR Code Display */}
+          <QRCodeDisplay url={sessionUrl} />
+
           {/* Action Buttons */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+          <div className="flex items-center justify-center gap-3">
             {/* Copy Code Button */}
             <button
               onClick={copyToClipboard}
-              className={`w-full sm:w-auto px-8 py-3 rounded-2xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 text-base flex items-center justify-center space-x-2 ${
+              className={`p-3 rounded-xl font-medium transition-all duration-200 border border-white/10 hover:border-white/20 active:scale-95 flex items-center gap-2 text-sm ${
                 copied
-                  ? "bg-emerald-500 text-white"
-                  : "bg-white text-black border border-gray-200 dark:bg-white dark:text-black hover:bg-gray-100"
+                  ? "bg-emerald-500/20 text-emerald-400"
+                  : "bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white"
               }`}
+              title="Copy Code"
             >
               <Copy className="h-4 w-4" />
-              <span>{copied ? "Copied!" : "Copy Code"}</span>
+              <span className="hidden sm:inline">Copy</span>
             </button>
 
             {/* Share Link Button */}
             <button
               onClick={shareLink}
-              className={`w-full sm:w-auto px-8 py-3 rounded-2xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 text-base flex items-center justify-center space-x-2 ${
+              className={`p-3 rounded-xl font-medium transition-all duration-200 border border-white/10 hover:border-white/20 active:scale-95 flex items-center gap-2 text-sm ${
                 linkCopied
-                  ? "bg-blue-500 text-white"
-                  : "bg-blue-600 text-white hover:bg-blue-500"
+                  ? "bg-blue-500/20 text-blue-400"
+                  : "bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white"
               }`}
+              title="Share Link"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -153,7 +162,7 @@ export const SessionCodeDisplay: React.FC<SessionCodeDisplayProps> = ({
                 <line x1="8.59" x2="15.42" y1="13.51" y2="17.49" />
                 <line x1="15.41" x2="8.59" y1="6.51" y2="10.49" />
               </svg>
-              <span>{linkCopied ? "Link Copied!" : "Share Link"}</span>
+              <span className="hidden sm:inline">Share</span>
             </button>
           </div>
 

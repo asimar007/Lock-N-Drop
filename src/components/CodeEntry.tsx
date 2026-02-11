@@ -117,48 +117,58 @@ export const CodeEntry: React.FC<CodeEntryProps> = ({
               <h3 className="text-2xl font-bold text-white mb-2">
                 Receive Files
               </h3>
-              <p className="text-gray-400 text-base">
-                Enter the 4-character sharing code
-              </p>
             </div>
           </div>
 
           {/* Code Input - Responsive Grid */}
-          <div className="grid grid-cols-4 gap-4 max-w-xs mx-auto">
-            {code.map((digit, index) => (
-              <input
-                key={index}
-                ref={(el) => (inputRefs.current[index] = el)}
-                type="text"
-                maxLength={1}
-                value={digit}
-                onChange={(e) => handleInputChange(index, e.target.value)}
-                onKeyDown={(e) => handleKeyDown(index, e)}
-                onPaste={handlePaste}
-                className="aspect-square text-center text-xl font-bold border-2 border-white/20 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-900 transition-all duration-200 bg-white/5 backdrop-blur-sm shadow-sm hover:shadow-md text-white"
-                disabled={isConnecting}
-              />
-            ))}
+          <div className="relative">
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-6 font-mono text-4xl font-bold text-white tracking-wider shadow-inner backdrop-blur-md">
+              <div className="grid grid-cols-4 gap-3 max-w-[200px] mx-auto">
+                {code.map((digit, index) => (
+                  <input
+                    key={index}
+                    ref={(el) => (inputRefs.current[index] = el)}
+                    type="text"
+                    maxLength={1}
+                    value={digit}
+                    onChange={(e) => handleInputChange(index, e.target.value)}
+                    onKeyDown={(e) => handleKeyDown(index, e)}
+                    onPaste={handlePaste}
+                    className="aspect-square text-center text-2xl sm:text-3xl font-mono font-bold border border-white/10 rounded-lg focus:border-white/30 focus:ring-0 focus:bg-white/10 transition-all duration-200 bg-black/20 text-white placeholder-white/20 outline-none w-full h-full p-0"
+                    disabled={isConnecting}
+                  />
+                ))}
+              </div>
+            </div>
+            <p className="text-gray-400 text-sm mt-4 text-center">
+              Enter the 4-character sharing code
+            </p>
           </div>
 
           {/* Connect Button */}
-          <button
-            onClick={() => onCodeSubmit(code.join(""))}
-            disabled={!isCodeComplete || isConnecting}
-            className="w-full px-6 sm:px-8 py-3 sm:py-4 bg-white text-black rounded-xl sm:rounded-2xl font-semibold hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center space-x-3 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:transform-none text-sm sm:text-base"
-          >
-            {isConnecting ? (
-              <>
-                <Loader2 className="h-5 w-5 animate-spin" />
-                <span>Connecting...</span>
-              </>
-            ) : (
-              <>
-                <span>Connect Securely</span>
-                <ArrowRight className="h-5 w-5" />
-              </>
-            )}
-          </button>
+          <div className="flex justify-center">
+            <button
+              onClick={() => onCodeSubmit(code.join(""))}
+              disabled={!isCodeComplete || isConnecting}
+              className={`w-full py-3.5 rounded-xl font-medium transition-all duration-200 border border-white/10 hover:border-white/20 active:scale-95 flex items-center justify-center gap-2 text-sm shadow-lg ${
+                !isCodeComplete || isConnecting
+                  ? "bg-white/5 text-gray-400 cursor-not-allowed"
+                  : "bg-blue-600 hover:bg-blue-500 text-white shadow-blue-500/20"
+              }`}
+            >
+              {isConnecting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Connecting...</span>
+                </>
+              ) : (
+                <>
+                  <span>Connect Securely</span>
+                  <ArrowRight className="h-4 w-4" />
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>
