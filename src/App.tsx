@@ -41,6 +41,7 @@ function App() {
     resetSession,
     setOnTransferComplete,
     dismissError,
+    cancelSession,
   } = useFileTransfer();
 
   const [showPrivacy, setShowPrivacy] = useState(false);
@@ -238,10 +239,10 @@ function App() {
               onClick={handleReset}
             >
               <div className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-lg bg-white text-black">
-                <Lock className="h-4 w-4" />
+                <img src="/icon.png" alt="Lock N Drop" className="h-5 w-5" />
               </div>
               <span className="font-bold tracking-tight text-lg">
-                LocknDrop
+                Lock N Drop
               </span>
             </div>
 
@@ -426,6 +427,10 @@ function App() {
                       transfers={session.files}
                       role="sender"
                       connectionStatus={connectionStatus}
+                      onCancel={() => {
+                        cancelSession();
+                        setMode("select");
+                      }}
                     />
                   </div>
                 )}
@@ -479,6 +484,11 @@ function App() {
                         transfers={session.files}
                         role="receiver"
                         connectionStatus={connectionStatus}
+                        onCancel={() => {
+                          console.log("Receiver cancelling");
+                          cancelSession();
+                          setMode("select");
+                        }}
                       />
                     )}
                   </div>

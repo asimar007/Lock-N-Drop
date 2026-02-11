@@ -14,26 +14,31 @@ import {
   formatTime,
 } from "../utils/fileUtils";
 import type { FileTransfer } from "../types";
+import { ConfirmationModal } from "./ConfirmationModal";
 
 interface TransferProgressProps {
   transfers: FileTransfer[];
   role: "sender" | "receiver";
   connectionStatus: string;
+  onCancel: () => void;
 }
 
 export const TransferProgress: React.FC<TransferProgressProps> = ({
   transfers,
   role,
   connectionStatus,
+  onCancel,
 }) => {
+  const [isConfirmOpen, setIsConfirmOpen] = React.useState(false);
+
   const totalFiles = transfers.length;
   const completedFiles = transfers.filter(
-    (t) => t.status === "completed"
+    (t) => t.status === "completed",
   ).length;
   const totalSize = transfers.reduce((sum, t) => sum + t.size, 0);
   const transferredSize = transfers.reduce(
     (sum, t) => sum + t.size * t.progress,
-    0
+    0,
   );
   const overallProgress =
     totalSize > 0 ? (transferredSize / totalSize) * 100 : 0;
@@ -77,8 +82,28 @@ export const TransferProgress: React.FC<TransferProgressProps> = ({
     return "from-emerald-500 to-teal-500";
   };
 
+  const handleCancelClick = () => {
+    setIsConfirmOpen(true);
+  };
+
+  const confirmCancel = () => {
+    onCancel();
+    setIsConfirmOpen(false);
+  };
+
   return (
     <div className="relative group">
+      <ConfirmationModal
+        isOpen={isConfirmOpen}
+        onClose={() => setIsConfirmOpen(false)}
+        onConfirm={confirmCancel}
+        title="Cancel Transfer"
+        message="Are you sure you want to cancel the transfer? This will disconnect the session and stop all progress."
+        confirmLabel="Yes, Cancel"
+        cancelLabel="No, Keep Transferring"
+        isDangerous={true}
+      />
+      {/* ... existing background ... */}
       <div
         className={`absolute inset-0 bg-gradient-to-r ${
           role === "sender"
@@ -91,6 +116,7 @@ export const TransferProgress: React.FC<TransferProgressProps> = ({
         {/* Header */}
         <div className="flex flex-row flex-wrap items-center justify-between gap-3 sm:gap-0">
           <div className="flex items-center space-x-3">
+            {/* ... existing header content ... */}
             <div
               className={`w-10 h-10 bg-gradient-to-br ${
                 role === "sender"
@@ -134,6 +160,7 @@ export const TransferProgress: React.FC<TransferProgressProps> = ({
         </div>
 
         {/* Overall Progress */}
+        {/* ... existing progress code ... */}
         <div className="space-y-4">
           <div className="flex justify-between items-center">
             <span className="text-sm font-medium text-gray-300">
@@ -165,7 +192,7 @@ export const TransferProgress: React.FC<TransferProgressProps> = ({
             {transfers.some((t) => t.speed) && (
               <span className="text-gray-400 font-medium">
                 {formatTransferSpeed(
-                  transfers.reduce((sum, t) => sum + (t.speed || 0), 0)
+                  transfers.reduce((sum, t) => sum + (t.speed || 0), 0),
                 )}
               </span>
             )}
@@ -199,7 +226,7 @@ export const TransferProgress: React.FC<TransferProgressProps> = ({
                       <div className="w-full bg-gray-800 rounded-full h-2 overflow-hidden">
                         <div
                           className={`h-2 bg-gradient-to-r ${getStatusColor(
-                            transfer.status
+                            transfer.status,
                           )} rounded-full transition-all duration-300 relative overflow-hidden`}
                           style={{ width: `${transfer.progress * 100}%` }}
                         >
@@ -242,6 +269,20 @@ export const TransferProgress: React.FC<TransferProgressProps> = ({
             </div>
           ))}
         </div>
+
+        {/* Cancel Button */}
+        {connectionStatus !== "completed" &&
+          connectionStatus !== "converted" && ( // Assuming 'converted' isn't a state, but 'completed' is.
+            <div className="pt-2">
+              <button
+                onClick={handleCancelClick}
+                className="w-full py-3 rounded-xl font-medium text-white bg-red-500/10 border border-red-500/20 hover:bg-red-500/20 hover:border-red-500/40 transition-all duration-200 text-sm flex items-center justify-center gap-2 group/cancel"
+              >
+                <XCircle className="h-4 w-4 text-red-500 group-hover/cancel:text-red-400" />
+                Cancel Transfer
+              </button>
+            </div>
+          )}
       </div>
     </div>
   );

@@ -33,11 +33,16 @@ interface TransferSessionComplete {
   type: "session-complete";
 }
 
+interface TransferSessionCancelled {
+  type: "session-cancelled";
+}
+
 type TransferMessage =
   | TransferHeader
   | TransferChunk
   | TransferEOF
-  | TransferSessionComplete;
+  | TransferSessionComplete
+  | TransferSessionCancelled;
 
 export class FileTransferService {
   private peer: Peer | null = null;
@@ -56,6 +61,7 @@ export class FileTransferService {
     type: string;
   }) => void;
   private onSessionComplete?: () => void;
+  private onSessionCancelled?: () => void;
   private onConnectionStateChange?: (state: string) => void;
 
   // Track received chunks for reassembly
@@ -293,6 +299,16 @@ export class FileTransferService {
     }
   }
 
+  async cancelSession() {
+    if (this.conn && this.conn.open) {
+      const msg: TransferSessionCancelled = { type: "session-cancelled" };
+      this.conn.send(JSON.stringify(msg));
+    }
+    // Give a small moment for message to be sent before destroying connection
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    await this.close();
+  }
+
   private async handleIncomingData(data: unknown) {
     try {
       // 0. Convert to ArrayBuffer if necessary
@@ -367,6 +383,8 @@ export class FileTransferService {
           this.reassembleFile(msg.fileId, fileContext);
         } else if (msg.type === "session-complete") {
           this.onSessionComplete?.();
+        } else if (msg.type === "session-cancelled") {
+          this.onSessionCancelled?.();
         }
       }
     } catch (e) {
@@ -428,6 +446,10 @@ export class FileTransferService {
 
   setSessionCompleteHandler(handler: () => void) {
     this.onSessionComplete = handler;
+  }
+
+  setSessionCancelledHandler(handler: () => void) {
+    this.onSessionCancelled = handler;
   }
 
   // Stub methods to satisfy calls from hooks (if any, pending hooks update)

@@ -76,12 +76,18 @@ export const useFileTransfer = () => {
             };
           });
 
-          // Trigger completion callback
           if (onTransferCompleteRef.current) {
             setTimeout(() => {
               onTransferCompleteRef.current?.();
             }, 1000);
           }
+        });
+
+        fileTransferService.current.setSessionCancelledHandler(() => {
+          console.log("Session cancelled by peer");
+          setError("Peer cancelled the transfer.");
+          setConnectionStatus("disconnected");
+          setSession(null);
         });
 
         let code: string;
@@ -267,6 +273,13 @@ export const useFileTransfer = () => {
           }
         });
 
+        fileTransferService.current.setSessionCancelledHandler(() => {
+          console.log("Session cancelled by peer");
+          setError("Peer cancelled the transfer.");
+          setConnectionStatus("disconnected");
+          setSession(null);
+        });
+
         fileTransferService.current.setProgressHandler((fileId, progress) => {
           // ... same progress handler ...
           setSession((prev) => {
@@ -324,6 +337,18 @@ export const useFileTransfer = () => {
     setError("");
   }, []);
 
+  const cancelSession = useCallback(async () => {
+    if (fileTransferService.current) {
+      await fileTransferService.current.cancelSession();
+      fileTransferService.current = null;
+    }
+    selectedFilesRef.current = [];
+    onTransferCompleteRef.current = null;
+    setSession(null);
+    setConnectionStatus("disconnected");
+    setError("");
+  }, []);
+
   const setOnTransferComplete = useCallback((callback: () => void) => {
     onTransferCompleteRef.current = callback;
   }, []);
@@ -340,6 +365,7 @@ export const useFileTransfer = () => {
     startTransfer,
     connectToSession,
     resetSession,
+    cancelSession,
     setOnTransferComplete,
     dismissError,
   };
