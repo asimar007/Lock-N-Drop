@@ -1,12 +1,26 @@
-import { generateSessionCode } from "../utils/code";
 import Peer, { DataConnection } from "peerjs";
+import { generateSessionCode } from "../utils/code";
 
-// Type definitions for internal structures
 interface ReassemblyContext {
   total: number;
   received: number;
+  nextExpected: number;
   chunks: Map<number, Uint8Array>;
   metadata: { name: string; type: string };
+}
+
+interface OutgoingTransferContext {
+  file: File;
+  fileId: string;
+  totalChunks: number;
+  chunkSize: number;
+  nextChunkIndex: number;
+  acknowledgedChunks: number;
+  inflight: Set<number>;
+  eofSent: boolean;
+  resolve: () => void;
+  reject: (error: Error) => void;
+  onProgress?: (progress: number) => void;
 }
 
 interface TransferHeader {
@@ -16,12 +30,29 @@ interface TransferHeader {
   fileType: string;
   size: number;
   totalChunks: number;
+  chunkSize: number;
 }
 
 interface TransferChunk {
   type: "chunk";
   fileId: string;
   index: number;
+}
+
+interface TransferChunkAck {
+  type: "chunk-ack";
+  fileId: string;
+  nextChunkIndex: number;
+}
+
+interface TransferReady {
+  type: "ready";
+}
+
+interface TransferResumeRequest {
+  type: "resume-request";
+  fileId: string;
+  nextChunkIndex: number;
 }
 
 interface TransferEOF {
@@ -39,14 +70,28 @@ interface TransferSessionCancelled {
 
 type TransferMessage =
   | TransferHeader
-  | TransferChunk
+  | TransferChunkAck
+  | TransferReady
+  | TransferResumeRequest
   | TransferEOF
   | TransferSessionComplete
   | TransferSessionCancelled;
 
+const CHUNK_SIZE = 64 * 1024;
+const MAX_INFLIGHT_CHUNKS = 8;
+const MAX_RECONNECT_ATTEMPTS = 8;
+const RECONNECT_DELAY_MS = 1500;
+
 export class FileTransferService {
   private peer: Peer | null = null;
   private conn: DataConnection | null = null;
+  private role: "sender" | "receiver" | null = null;
+  private targetPeerId: string | null = null;
+  private explicitClose = false;
+  private reconnectAttempts = 0;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private isPumpingTransfer = false;
+  private activeTransfer: OutgoingTransferContext | null = null;
 
   private onProgress?: (fileId: string, progress: number) => void;
   private onFileReceived?: (file: {
@@ -64,18 +109,14 @@ export class FileTransferService {
   private onSessionCancelled?: () => void;
   private onConnectionStateChange?: (state: string) => void;
 
-  // Track received chunks for reassembly
   private receivedChunks: Map<string, ReassemblyContext> = new Map();
-
-  constructor() {}
-
-  // --- Session Management ---
 
   async createSession(): Promise<string> {
     const code = generateSessionCode();
-
-    // Prefix to avoid collisions on public PeerJS server
     const peerId = `LND-${code}`;
+
+    this.role = "sender";
+    this.explicitClose = false;
 
     return new Promise((resolve, reject) => {
       try {
@@ -83,29 +124,7 @@ export class FileTransferService {
           debug: 1,
         });
 
-        this.peer.on("open", (id) => {
-          console.log("My Peer ID is:", id);
-          this.onConnectionStateChange?.("waiting");
-          resolve(code);
-        });
-
-        this.peer.on("connection", (connection) => {
-          console.log("Incoming connection...");
-          this.handleConnection(connection);
-        });
-
-        this.peer.on("error", (err) => {
-          console.error("Peer error:", err);
-          // If ID is taken (rare with random 6 chars but possible), we might need to retry?
-          // For now, simple error.
-          this.onConnectionStateChange?.("failed");
-          reject(err);
-        });
-
-        this.peer.on("disconnected", () => {
-          console.log("Peer disconnected from server");
-          // Retry?
-        });
+        this.attachPeerHandlers(resolve, reject, code);
       } catch (error) {
         reject(error);
       }
@@ -113,23 +132,17 @@ export class FileTransferService {
   }
 
   async joinSession(code: string): Promise<boolean> {
-    const targetPeerId = `LND-${code}`;
+    this.role = "receiver";
+    this.targetPeerId = `LND-${code}`;
+    this.explicitClose = false;
 
     return new Promise((resolve) => {
       try {
-        // Receiver gets a random ID
         this.peer = new Peer();
 
         this.peer.on("open", () => {
           this.onConnectionStateChange?.("connecting");
-
-          if (!this.peer) return;
-
-          const connection = this.peer.connect(targetPeerId, {
-            reliable: true,
-          });
-
-          this.handleConnection(connection);
+          this.openReceiverConnection();
           resolve(true);
         });
 
@@ -137,6 +150,14 @@ export class FileTransferService {
           console.error("Join Peer error:", err);
           this.onConnectionStateChange?.("failed");
           resolve(false);
+        });
+
+        this.peer.on("disconnected", () => {
+          console.log("Peer disconnected from signaling server");
+          if (!this.explicitClose) {
+            this.onConnectionStateChange?.("reconnecting");
+            this.peer?.reconnect();
+          }
         });
       } catch (error) {
         console.error("Join session failed:", error);
@@ -146,220 +167,298 @@ export class FileTransferService {
     });
   }
 
-  // --- Connection Handling ---
+  private attachPeerHandlers(
+    resolve: (code: string) => void,
+    reject: (error: unknown) => void,
+    code: string,
+  ) {
+    if (!this.peer) return;
 
-  private handleConnection(connection: DataConnection) {
-    this.conn = connection;
-
-    this.conn.on("open", () => {
-      console.log("DataConnection Open!");
-      this.onConnectionStateChange?.("connected");
+    this.peer.on("open", (id) => {
+      console.log("My Peer ID is:", id);
+      this.onConnectionStateChange?.("waiting");
+      resolve(code);
     });
 
-    this.conn.on("data", (data) => {
-      // PeerJS determines type automatically. We send JSON strings usually.
-      // But if we sent binary, it would receive ArrayBuffer.
-      // Our previous logic used JSON strings for everything including base64 chunks.
-      // Let's stick to that for compatibility with existing logic structure.
-      this.handleIncomingData(data as string);
+    this.peer.on("connection", (connection) => {
+      console.log("Incoming connection...");
+      this.handleConnection(connection);
     });
 
-    this.conn.on("close", () => {
-      console.log("Connection closed");
-      this.onConnectionStateChange?.("disconnected");
-      this.conn = null;
-    });
-
-    this.conn.on("error", (err) => {
-      console.error("Connection error:", err);
+    this.peer.on("error", (err) => {
+      console.error("Peer error:", err);
       this.onConnectionStateChange?.("failed");
+      reject(err);
+    });
+
+    this.peer.on("disconnected", () => {
+      console.log("Peer disconnected from signaling server");
+      if (!this.explicitClose) {
+        this.onConnectionStateChange?.("reconnecting");
+        this.peer?.reconnect();
+      }
     });
   }
 
-  // --- Data Transfer ---
+  private openReceiverConnection() {
+    if (!this.peer || !this.targetPeerId) return;
+
+    const connection = this.peer.connect(this.targetPeerId, {
+      reliable: true,
+    });
+
+    this.handleConnection(connection);
+  }
+
+  private handleConnection(connection: DataConnection) {
+    if (this.conn && this.conn !== connection) {
+      this.conn.close();
+    }
+
+    this.conn = connection;
+
+    connection.on("open", () => {
+      console.log("DataConnection open");
+      if (this.conn !== connection) return;
+
+      this.reconnectAttempts = 0;
+      this.clearReconnectTimer();
+      this.onConnectionStateChange?.(
+        this.activeTransfer ? "reconnecting" : "connected",
+      );
+
+      if (this.role === "receiver") {
+        this.sendResumeOrReady();
+      }
+    });
+
+    connection.on("data", (data) => {
+      this.handleIncomingData(data).catch((error) => {
+        console.error("Error handling data", error);
+      });
+    });
+
+    connection.on("close", () => {
+      console.log("Connection closed");
+      if (this.conn !== connection) return;
+
+      this.conn = null;
+      this.handleConnectionLoss();
+    });
+
+    connection.on("error", (err) => {
+      console.error("Connection error:", err);
+      if (!this.explicitClose && this.conn === connection) {
+        this.onConnectionStateChange?.("reconnecting");
+      }
+    });
+  }
 
   async sendFile(
     file: File,
     onProgress?: (progress: number) => void,
   ): Promise<void> {
-    if (!this.conn || !this.conn.open) {
-      throw new Error("Connection not open");
+    if (this.role !== "sender") {
+      throw new Error("Only the sender can send files");
     }
-
-    this.onConnectionStateChange?.("transferring");
 
     const fileId = crypto.randomUUID();
+    const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
 
-    // 1. Send Start Header
-    const header: TransferHeader = {
-      type: "header",
-      fileId,
-      name: file.name,
-      fileType: file.type,
-      size: file.size,
-      totalChunks: Math.ceil(file.size / (128 * 1024)), // 128KB chunks
-    };
-    this.conn.send(JSON.stringify(header));
-
-    // 2. Chunk & Send - "The Firehose" Strategy
-    const chunkSize = 128 * 1024; // 128KB Chunks
-    const totalChunks = Math.ceil(file.size / chunkSize);
-
-    // High Water Mark: 1MB
-    const HIGH_WATER_MARK = 1024 * 1024;
-    let lastProgressUpdate = 0;
-
-    for (let i = 0; i < totalChunks; i++) {
-      // Stop if connection dies
-      if (!this.conn.open) break;
-
-      const start = i * chunkSize;
-      const end = Math.min(start + chunkSize, file.size);
-
-      // Read file chunk
-      const chunkBuffer = await file.slice(start, end).arrayBuffer();
-
-      // Create Custom Binary Packet
-      // Structure: [Header Length (4 bytes UI32)] [JSON Header Bytes] [Raw Chunk Bytes]
-      const chunkMetadata = JSON.stringify({
-        type: "chunk",
+    return new Promise((resolve, reject) => {
+      this.activeTransfer = {
+        file,
         fileId,
-        index: i,
+        totalChunks,
+        chunkSize: CHUNK_SIZE,
+        nextChunkIndex: 0,
+        acknowledgedChunks: 0,
+        inflight: new Set(),
+        eofSent: false,
+        resolve,
+        reject,
+        onProgress,
+      };
+
+      this.onConnectionStateChange?.("transferring");
+      this.pumpTransfer().catch((error) => {
+        this.failActiveTransfer(error);
       });
-
-      const metadataBuffer = new TextEncoder().encode(chunkMetadata);
-      const metadataLength = metadataBuffer.byteLength;
-
-      // Alloc packet: 4 bytes len + metadata + chunk
-      const packet = new Uint8Array(
-        4 + metadataLength + chunkBuffer.byteLength,
-      );
-      const view = new DataView(packet.buffer);
-
-      // Write Header Length (Little Endian)
-      view.setUint32(0, metadataLength, true);
-
-      // Write Metadata
-      packet.set(metadataBuffer, 4);
-
-      // Write Chunk Data
-      packet.set(new Uint8Array(chunkBuffer), 4 + metadataLength);
-
-      try {
-        this.conn.send(packet);
-      } catch (e) {
-        console.error("Send failed at chunk", i, e);
-        throw e;
-      }
-
-      // Progress Throttling (Max 20fps = every 50ms)
-      const now = Date.now();
-      if (now - lastProgressUpdate > 50 || i === totalChunks - 1) {
-        const progress = (i + 1) / totalChunks;
-        onProgress?.(progress);
-        this.onProgress?.(fileId, progress);
-        lastProgressUpdate = now;
-      }
-
-      // Backpressure - "The Firehose" Strategy with Low Water Mark
-      const bufferedAmount = this.conn.dataChannel?.bufferedAmount || 0;
-
-      if (bufferedAmount > HIGH_WATER_MARK) {
-        // Wait until buffer drains below LOW_WATER_MARK (e.g., 256KB)
-        // rather than 0. This keeps the pipe full and prevents "stop-and-go" stalls.
-        const LOW_WATER_MARK = 256 * 1024;
-        let waitTime = 0;
-
-        while ((this.conn.dataChannel?.bufferedAmount || 0) > LOW_WATER_MARK) {
-          await new Promise((r) => setTimeout(r, 10));
-          waitTime += 10;
-
-          // Safeguard: If buffer doesn't drain for 30s, assume connection is dead
-          if (waitTime > 30000) {
-            throw new Error("Connection timeout: Buffer failed to drain");
-          }
-        }
-      }
-      // Small yield to event loop to keep UI responsive
-      if (i % 50 === 0) await new Promise((r) => setTimeout(r, 0));
-    }
-
-    // 3. Send End
-    if (this.conn.open) {
-      const eof: TransferEOF = { type: "eof", fileId };
-      this.conn.send(JSON.stringify(eof));
-      this.onConnectionStateChange?.("completed");
-    }
+    });
   }
 
   async sendSessionComplete() {
-    if (this.conn && this.conn.open) {
+    if (this.conn?.open) {
       const msg: TransferSessionComplete = { type: "session-complete" };
       this.conn.send(JSON.stringify(msg));
     }
   }
 
   async cancelSession() {
-    if (this.conn && this.conn.open) {
+    if (this.conn?.open) {
       const msg: TransferSessionCancelled = { type: "session-cancelled" };
       this.conn.send(JSON.stringify(msg));
     }
-    // Give a small moment for message to be sent before destroying connection
+
     await new Promise((resolve) => setTimeout(resolve, 100));
     await this.close();
   }
 
-  private async handleIncomingData(data: unknown) {
+  private async pumpTransfer() {
+    if (this.isPumpingTransfer || !this.activeTransfer) return;
+
+    this.isPumpingTransfer = true;
+
     try {
-      // 0. Convert to ArrayBuffer if necessary
-      let buffer: ArrayBuffer | null = null;
+      while (this.activeTransfer && this.conn?.open) {
+        const transfer = this.activeTransfer;
 
-      if (data instanceof ArrayBuffer) {
-        buffer = data;
-      } else if (data instanceof Uint8Array) {
-        buffer = data.buffer as ArrayBuffer;
-      } else if (data instanceof Blob) {
-        buffer = (await data.arrayBuffer()) as ArrayBuffer;
-      }
-
-      // 1. Handle Binary Chunk (ArrayBuffer)
-      if (buffer) {
-        const view = new DataView(buffer);
-
-        // Read Metadata Length
-        const metadataLength = view.getUint32(0, true);
-
-        // Decode Metadata
-        const metadataBytes = new Uint8Array(buffer, 4, metadataLength);
-        const metadataString = new TextDecoder().decode(metadataBytes);
-        const msg = JSON.parse(metadataString);
-
-        if (msg.type === "chunk") {
-          const fileContext = this.receivedChunks.get(msg.fileId);
-          if (!fileContext) return;
-
-          // Extract Raw Chunk
-          const chunkData = new Uint8Array(buffer, 4 + metadataLength);
-
-          // Store the slice
-          fileContext.chunks.set(msg.index, chunkData);
-          fileContext.received++;
-
-          const progress = fileContext.received / fileContext.total;
-          this.onProgress?.(msg.fileId, progress);
+        if (transfer.nextChunkIndex === transfer.acknowledgedChunks) {
+          this.sendHeader(transfer);
         }
-        return;
+
+        while (
+          this.conn?.open &&
+          transfer.inflight.size < MAX_INFLIGHT_CHUNKS &&
+          transfer.nextChunkIndex < transfer.totalChunks
+        ) {
+          const index = transfer.nextChunkIndex;
+          const chunkBuffer = await this.readChunk(transfer.file, index);
+          this.sendChunkPacket(transfer.fileId, index, chunkBuffer);
+          transfer.inflight.add(index);
+          transfer.nextChunkIndex += 1;
+        }
+
+        if (
+          transfer.nextChunkIndex >= transfer.totalChunks &&
+          transfer.inflight.size === 0 &&
+          !transfer.eofSent
+        ) {
+          const eof: TransferEOF = { type: "eof", fileId: transfer.fileId };
+          this.conn.send(JSON.stringify(eof));
+          transfer.eofSent = true;
+          this.onProgress?.(transfer.fileId, 1);
+          transfer.onProgress?.(1);
+          this.onConnectionStateChange?.("completed");
+          transfer.resolve();
+          this.activeTransfer = null;
+          break;
+        }
+
+        break;
       }
+    } finally {
+      this.isPumpingTransfer = false;
+    }
+  }
 
-      // 2. Handle Text Control Messages (Header/EOF)
-      if (typeof data === "string") {
-        const msg = JSON.parse(data) as TransferMessage;
+  private sendHeader(transfer: OutgoingTransferContext) {
+    if (!this.conn?.open) return;
 
-        if (msg.type === "header") {
-          // Start new file reception
+    const header: TransferHeader = {
+      type: "header",
+      fileId: transfer.fileId,
+      name: transfer.file.name,
+      fileType: transfer.file.type,
+      size: transfer.file.size,
+      totalChunks: transfer.totalChunks,
+      chunkSize: transfer.chunkSize,
+    };
+
+    this.conn.send(JSON.stringify(header));
+  }
+
+  private async readChunk(file: File, index: number) {
+    const start = index * CHUNK_SIZE;
+    const end = Math.min(start + CHUNK_SIZE, file.size);
+    return file.slice(start, end).arrayBuffer();
+  }
+
+  private sendChunkPacket(
+    fileId: string,
+    index: number,
+    chunkBuffer: ArrayBuffer,
+  ) {
+    if (!this.conn?.open) return;
+
+    const chunkMetadata: TransferChunk = {
+      type: "chunk",
+      fileId,
+      index,
+    };
+
+    const metadataBuffer = new TextEncoder().encode(
+      JSON.stringify(chunkMetadata),
+    );
+    const packet = new Uint8Array(4 + metadataBuffer.byteLength + chunkBuffer.byteLength);
+    const view = new DataView(packet.buffer);
+
+    view.setUint32(0, metadataBuffer.byteLength, true);
+    packet.set(metadataBuffer, 4);
+    packet.set(new Uint8Array(chunkBuffer), 4 + metadataBuffer.byteLength);
+
+    this.conn.send(packet);
+  }
+
+  private async handleIncomingData(data: unknown) {
+    let buffer: ArrayBuffer | null = null;
+
+    if (data instanceof ArrayBuffer) {
+      buffer = data;
+    } else if (data instanceof Uint8Array) {
+      buffer = data.slice().buffer;
+    } else if (data instanceof Blob) {
+      buffer = await data.arrayBuffer();
+    }
+
+    if (buffer) {
+      this.handleBinaryChunk(buffer);
+      return;
+    }
+
+    if (typeof data === "string") {
+      const msg = JSON.parse(data) as TransferMessage;
+      this.handleControlMessage(msg);
+    }
+  }
+
+  private handleBinaryChunk(buffer: ArrayBuffer) {
+    const view = new DataView(buffer);
+    const metadataLength = view.getUint32(0, true);
+    const metadataBytes = new Uint8Array(buffer, 4, metadataLength);
+    const metadataString = new TextDecoder().decode(metadataBytes);
+    const msg = JSON.parse(metadataString) as TransferChunk;
+
+    if (msg.type !== "chunk") return;
+
+    const fileContext = this.receivedChunks.get(msg.fileId);
+    if (!fileContext) return;
+
+    if (!fileContext.chunks.has(msg.index)) {
+      const chunkData = new Uint8Array(buffer, 4 + metadataLength);
+      fileContext.chunks.set(msg.index, chunkData);
+      fileContext.received += 1;
+    }
+
+    while (fileContext.chunks.has(fileContext.nextExpected)) {
+      fileContext.nextExpected += 1;
+    }
+
+    const progress = fileContext.nextExpected / fileContext.total;
+    this.onProgress?.(msg.fileId, progress);
+    this.sendChunkAck(msg.fileId, fileContext.nextExpected);
+  }
+
+  private handleControlMessage(msg: TransferMessage) {
+    switch (msg.type) {
+      case "header": {
+        const existing = this.receivedChunks.get(msg.fileId);
+
+        if (!existing) {
           this.receivedChunks.set(msg.fileId, {
             total: msg.totalChunks,
             received: 0,
+            nextExpected: 0,
             chunks: new Map(),
             metadata: {
               name: msg.name,
@@ -373,51 +472,234 @@ export class FileTransferService {
             size: msg.size,
             type: msg.fileType,
           });
-
-          this.onConnectionStateChange?.("transferring");
-        } else if (msg.type === "eof") {
-          const fileContext = this.receivedChunks.get(msg.fileId);
-          if (!fileContext) return;
-
-          // Reassemble
-          this.reassembleFile(msg.fileId, fileContext);
-        } else if (msg.type === "session-complete") {
-          this.onSessionComplete?.();
-        } else if (msg.type === "session-cancelled") {
-          this.onSessionCancelled?.();
         }
+
+        this.onConnectionStateChange?.("transferring");
+
+        const context = this.receivedChunks.get(msg.fileId);
+        if (context) {
+          this.sendChunkAck(msg.fileId, context.nextExpected);
+        }
+        break;
       }
-    } catch (e) {
-      console.error("Error handling data", e);
+      case "chunk-ack":
+        this.handleChunkAck(msg);
+        break;
+      case "ready":
+        this.handleReady();
+        break;
+      case "resume-request":
+        this.handleResumeRequest(msg);
+        break;
+      case "eof": {
+        const fileContext = this.receivedChunks.get(msg.fileId);
+        if (!fileContext) return;
+
+        if (fileContext.nextExpected < fileContext.total) {
+          this.sendChunkAck(msg.fileId, fileContext.nextExpected);
+          return;
+        }
+
+        this.reassembleFile(msg.fileId, fileContext).catch((error) => {
+          console.error("Failed to reassemble file", error);
+        });
+        break;
+      }
+      case "session-complete":
+        this.onSessionComplete?.();
+        break;
+      case "session-cancelled":
+        this.onSessionCancelled?.();
+        break;
     }
+  }
+
+  private handleChunkAck(msg: TransferChunkAck) {
+    const transfer = this.activeTransfer;
+    if (!transfer || transfer.fileId !== msg.fileId) return;
+
+    const acknowledged = Math.max(
+      0,
+      Math.min(msg.nextChunkIndex, transfer.totalChunks),
+    );
+
+    if (acknowledged < transfer.acknowledgedChunks) return;
+
+    transfer.acknowledgedChunks = acknowledged;
+
+    for (const index of Array.from(transfer.inflight)) {
+      if (index < acknowledged) {
+        transfer.inflight.delete(index);
+      }
+    }
+
+    const progress = acknowledged / transfer.totalChunks;
+    this.onProgress?.(transfer.fileId, progress);
+    transfer.onProgress?.(progress);
+
+    this.pumpTransfer().catch((error) => {
+      this.failActiveTransfer(error);
+    });
+  }
+
+  private handleReady() {
+    if (!this.activeTransfer) return;
+
+    this.activeTransfer.nextChunkIndex = this.activeTransfer.acknowledgedChunks;
+    this.activeTransfer.inflight.clear();
+
+    this.pumpTransfer().catch((error) => {
+      this.failActiveTransfer(error);
+    });
+  }
+
+  private handleResumeRequest(msg: TransferResumeRequest) {
+    const transfer = this.activeTransfer;
+    if (!transfer || transfer.fileId !== msg.fileId) return;
+
+    transfer.acknowledgedChunks = Math.min(
+      transfer.acknowledgedChunks,
+      msg.nextChunkIndex,
+    );
+    transfer.nextChunkIndex = msg.nextChunkIndex;
+    transfer.inflight.clear();
+    transfer.eofSent = false;
+
+    const progress = transfer.acknowledgedChunks / transfer.totalChunks;
+    this.onProgress?.(transfer.fileId, progress);
+    transfer.onProgress?.(progress);
+
+    this.pumpTransfer().catch((error) => {
+      this.failActiveTransfer(error);
+    });
+  }
+
+  private sendChunkAck(fileId: string, nextChunkIndex: number) {
+    if (!this.conn?.open) return;
+
+    const msg: TransferChunkAck = {
+      type: "chunk-ack",
+      fileId,
+      nextChunkIndex,
+    };
+
+    this.conn.send(JSON.stringify(msg));
+  }
+
+  private sendResumeOrReady() {
+    if (!this.conn?.open) return;
+
+    const incompleteTransfer = Array.from(this.receivedChunks.entries()).find(
+      ([, context]) => context.nextExpected < context.total,
+    );
+
+    if (incompleteTransfer) {
+      const [fileId, context] = incompleteTransfer;
+      const msg: TransferResumeRequest = {
+        type: "resume-request",
+        fileId,
+        nextChunkIndex: context.nextExpected,
+      };
+      this.conn.send(JSON.stringify(msg));
+      return;
+    }
+
+    const ready: TransferReady = { type: "ready" };
+    this.conn.send(JSON.stringify(ready));
+  }
+
+  private handleConnectionLoss() {
+    if (this.explicitClose) {
+      this.onConnectionStateChange?.("disconnected");
+      return;
+    }
+
+    if (this.activeTransfer) {
+      this.activeTransfer.nextChunkIndex = this.activeTransfer.acknowledgedChunks;
+      this.activeTransfer.inflight.clear();
+      this.activeTransfer.eofSent = false;
+      this.onConnectionStateChange?.("reconnecting");
+    } else {
+      this.onConnectionStateChange?.("disconnected");
+    }
+
+    if (this.role === "receiver") {
+      this.scheduleReconnect();
+    }
+  }
+
+  private scheduleReconnect() {
+    if (
+      this.explicitClose ||
+      this.reconnectTimer ||
+      !this.peer ||
+      !this.targetPeerId ||
+      this.conn
+    ) {
+      return;
+    }
+
+    if (this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+      this.onConnectionStateChange?.("failed");
+      return;
+    }
+
+    this.reconnectAttempts += 1;
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+
+      if (this.peer?.disconnected) {
+        this.peer.reconnect();
+      }
+
+      this.openReceiverConnection();
+    }, RECONNECT_DELAY_MS);
+  }
+
+  private clearReconnectTimer() {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+  }
+
+  private failActiveTransfer(error: unknown) {
+    const transfer = this.activeTransfer;
+    this.activeTransfer = null;
+
+    if (transfer) {
+      transfer.reject(
+        error instanceof Error ? error : new Error("Transfer failed"),
+      );
+    }
+
+    this.onConnectionStateChange?.("failed");
   }
 
   private async reassembleFile(fileId: string, context: ReassemblyContext) {
     const chunks: BlobPart[] = [];
 
-    for (let i = 0; i < context.total; i++) {
+    for (let i = 0; i < context.total; i += 1) {
       const chunk = context.chunks.get(i);
-      if (chunk) {
-        // Pushing the Uint8Array view directly ensures we only use the data part,
-        // ignoring the packet header bytes in the underlying buffer.
-        chunks.push(chunk as unknown as BlobPart);
+      if (!chunk) {
+        this.sendChunkAck(fileId, context.nextExpected);
+        return;
       }
+      chunks.push(chunk as unknown as BlobPart);
     }
 
     const blob = new Blob(chunks, { type: context.metadata.type });
 
-    // Trigger download
     this.onFileReceived?.({
       name: context.metadata.name,
-      data: (await blob.arrayBuffer()) as ArrayBuffer,
+      data: await blob.arrayBuffer(),
       type: context.metadata.type,
     });
 
     this.receivedChunks.delete(fileId);
     this.onConnectionStateChange?.("completed");
+    this.sendResumeOrReady();
   }
-
-  // --- Handlers ---
 
   setProgressHandler(handler: (fileId: string, progress: number) => void) {
     this.onProgress = handler;
@@ -452,19 +734,25 @@ export class FileTransferService {
     this.onSessionCancelled = handler;
   }
 
-  // Stub methods to satisfy calls from hooks (if any, pending hooks update)
   listenForSessionCompletion() {}
   setSessionCompletionHandler() {}
 
   async close() {
+    this.explicitClose = true;
+    this.clearReconnectTimer();
+
     if (this.conn) {
       this.conn.close();
       this.conn = null;
     }
+
     if (this.peer) {
       this.peer.destroy();
       this.peer = null;
     }
+
+    this.activeTransfer = null;
     this.receivedChunks.clear();
+    this.reconnectAttempts = 0;
   }
 }

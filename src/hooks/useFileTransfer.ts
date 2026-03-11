@@ -25,7 +25,15 @@ export const useFileTransfer = () => {
 
           if (state === "failed") {
             setError("Connection failed. Please try again.");
+          } else if (state === "reconnecting") {
+            setError("Connection interrupted. Trying to resume transfer...");
+          } else if (state === "disconnected") {
+            setError("Connection lost. Trying to reconnect...");
           } else if (state === "connected") {
+            setError("");
+          } else if (state === "transferring") {
+            setError("");
+          } else if (state === "completed") {
             setError("");
           }
         });
@@ -209,7 +217,15 @@ export const useFileTransfer = () => {
           setConnectionStatus(state);
           if (state === "failed") {
             setError("Connection failed. Please try again.");
+          } else if (state === "reconnecting") {
+            setError("Connection interrupted. Trying to resume transfer...");
+          } else if (state === "disconnected") {
+            setError("Connection lost. Trying to reconnect...");
           } else if (state === "connected") {
+            setError("");
+          } else if (state === "transferring") {
+            setError("");
+          } else if (state === "completed") {
             setError("");
           }
         });
