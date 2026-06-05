@@ -1,4 +1,5 @@
 import Peer, { DataConnection } from "peerjs";
+import { getIceServers } from "../config/iceServers";
 import { generateSessionCode } from "../utils/code";
 
 interface ReassemblyContext {
@@ -81,6 +82,12 @@ const CHUNK_SIZE = 64 * 1024;
 const MAX_INFLIGHT_CHUNKS = 8;
 const MAX_RECONNECT_ATTEMPTS = 8;
 const RECONNECT_DELAY_MS = 1500;
+const createPeerOptions = () => ({
+  debug: 1,
+  config: {
+    iceServers: getIceServers(),
+  },
+});
 
 export class FileTransferService {
   private peer: Peer | null = null;
@@ -120,9 +127,7 @@ export class FileTransferService {
 
     return new Promise((resolve, reject) => {
       try {
-        this.peer = new Peer(peerId, {
-          debug: 1,
-        });
+        this.peer = new Peer(peerId, createPeerOptions());
 
         this.attachPeerHandlers(resolve, reject, code);
       } catch (error) {
@@ -138,7 +143,7 @@ export class FileTransferService {
 
     return new Promise((resolve) => {
       try {
-        this.peer = new Peer();
+        this.peer = new Peer(createPeerOptions());
 
         this.peer.on("open", () => {
           this.onConnectionStateChange?.("connecting");
