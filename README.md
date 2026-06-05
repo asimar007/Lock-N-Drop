@@ -74,23 +74,7 @@ npm run dev
 
 ### Environment Configuration
 
-No `.env` file is required for local development. LocknDrop uses public PeerJS signaling and a default public STUN server for WebRTC connection discovery.
-
-You can override ICE servers with Vite environment variables:
-
-```bash
-VITE_STUN_URLS=stun:stun.l.google.com:19302
-```
-
-Multiple STUN URLs can be comma-separated. Optional TURN relay settings are also supported:
-
-```bash
-VITE_TURN_URLS=turn:your-turn-server.example.com:3478
-VITE_TURN_USERNAME=your-username
-VITE_TURN_CREDENTIAL=your-credential
-```
-
-TURN improves connection reliability on strict networks, but relays encrypted transfer traffic through the TURN server and can create bandwidth costs. Avoid exposing permanent TURN credentials in a public frontend; use short-lived credentials from a server endpoint for production TURN.
+No `.env` file is required! The project uses public PeerJS signaling (or you can host your own).
 
 ---
 
